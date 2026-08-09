@@ -37,12 +37,35 @@ var MiqaatScheduler = (function () {
   var cacheKeys = [];
   var CACHE_MAX = 4;
 
+  /* Times fetched from aladhan.com for a specific day, keyed "YYYY-MM-DD".
+     When present they replace the locally computed minutes for that day — the
+     local calculation still runs, so a sync failure degrades to offline rather
+     than to nothing. `syncStamp` busts the memo cache when this changes. */
+  var synced = {};
+  var syncStamp = 0;
+
+  function setSyncedTimes(dayKey, times) {
+    synced[dayKey] = times;
+    syncStamp++;
+  }
+
+  function clearSyncedTimes() {
+    synced = {};
+    syncStamp++;
+  }
+
+  function dayKeyOf(date) {
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return date.getFullYear() + "-" + p(date.getMonth() + 1) + "-" + p(date.getDate());
+  }
+
   function cacheKey(date, loc, settings) {
     return date.getFullYear() + "-" + date.getMonth() + "-" + date.getDate()
       + "|" + loc.lat.toFixed(4) + "," + loc.lng.toFixed(4)
       + "|" + settings.method + "|" + settings.asr
       + "|" + [settings.adjust.fajr, settings.adjust.sunrise, settings.adjust.dhuhr,
-               settings.adjust.asr, settings.adjust.maghrib, settings.adjust.isha].join(",");
+               settings.adjust.asr, settings.adjust.maghrib, settings.adjust.isha].join(",")
+      + "|s" + syncStamp;
   }
 
   /* All of a day's prayers as real Date objects.
@@ -60,6 +83,19 @@ var MiqaatScheduler = (function () {
 
   function computeDayTimes(date, loc, settings) {
     var mins = MiqaatTimes.calculate(date, loc, settings);
+
+    // A successful aladhan.com sync overrides the local minutes for that day.
+    // The local values are still computed above, so losing the network simply
+    // drops us back to them.
+    var over = synced[dayKeyOf(date)];
+    if (over) {
+      for (var k in over) {
+        if (over.hasOwnProperty(k) && typeof over[k] === "number") {
+          mins[k] = over[k] + ((settings.adjust && settings.adjust[k]) || 0);
+        }
+      }
+    }
+
     var base = startOfDay(date);
     var out = [];
     for (var i = 0; i < PRAYERS.length; i++) {
@@ -241,6 +277,9 @@ var MiqaatScheduler = (function () {
     currentPrayer: currentPrayer,
     armAlarms: armAlarms,
     armedCount: armedCount,
+    setSyncedTimes: setSyncedTimes,
+    clearSyncedTimes: clearSyncedTimes,
+    dayKeyOf: dayKeyOf,
     wakeReason: wakeReason,
     createTicker: createTicker,
     startOfDay: startOfDay,

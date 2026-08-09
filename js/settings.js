@@ -11,13 +11,14 @@ var MiqaatSettings = (function () {
     method: "ISNA",            // North America; see MiqaatTimes.METHODS
     asr: "shafii",             // "shafii" (Maliki/Hanbali too) | "hanafi"
     hijriOffset: 0,            // ±days, local moon sighting
+    aladhanSync: true,         // cross-check the offline calc against aladhan.com daily
     mode: "home",              // "home" | "mosque" | "kids"
     ramadanAuto: true,         // switch to Ramadan dashboard during Ramadan
     adjust: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
 
-    athanVoice: "makkah",      // see ATHAN_VOICES in app.js
+    athanVoice: "adhan1",      // see ATHAN_VOICES in app.js
     athanVolume: 0.85,
-    fajrAthan: "short",        // Fajr often wants a quieter/shorter call
+    fajrAthan: "adhan5",       // a separate pick for Fajr, often a quieter one
 
     // Fajr defaults off: nobody wants the TV shouting at 4am in a bedroom.
     interrupt: { fajr: false, dhuhr: true, asr: true, maghrib: true, isha: true },

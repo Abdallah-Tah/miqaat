@@ -40,27 +40,61 @@ Two limitations that follow from this and cannot be engineered away:
 Signed with the `iptv-samsung` profile — deliberately the **same Samsung cert as
 the IPTV player**, so the two apps coexist without tripping install error 118.
 
-## Athan audio is a placeholder
+## Athan audio
 
-`assets/athan/` ships four **text-to-speech placeholders** that announce which
-reciter slot is playing — enough to test the picker by ear on the TV, but not
-athan recitations. Real recordings are not mine to redistribute.
-
-Replace each, keeping the filename:
-
-```
-assets/athan/makkah.mp3    Makkah - Haram
-assets/athan/madinah.mp3   Madinah - Masjid an-Nabawi
-assets/athan/aqsa.mp3      Al-Aqsa
-assets/athan/short.mp3     Short call (Fajr default)
+```sh
+./fetch-athan.sh
 ```
 
-Settings → **Reciter** cycles them and plays each as you scroll; **Play selected
-reciter** replays on demand. A missing file is reported on screen rather than
-failing silently, and the athan falls back to a 120-second visual call.
+Downloads five adhans from `cdn.aladhan.com` and re-encodes them to 56 kbps
+mono (~1.4 MB each, 7.3 MB total). They are **not committed** — third-party
+audio — so run this once after a fresh clone. Without them the app still
+works: it falls back to a 120-second visual athan and says so.
+
+They are numbered, not named after mosques. AlAdhan publishes no reciter
+attribution for these files, so any mosque name would be invented. Settings →
+**Reciter** plays each as you scroll, so you choose by ear; **Fajr reciter** is
+a separate pick.
+
+(`a3` on the CDN is skipped deliberately — it is tagged *The Armed Man: A Mass
+For Peace*, a Karl Jenkins choral piece, not a call to prayer.)
 
 Asr madhab is **Shafi'i / Maliki / Hanbali** (one shadow length) or **Hanafi**
 (two) — the first covers three of the four schools, hence the compound label.
+
+## Backgrounds
+
+Twelve generated scenes ship in `assets/bg` — three per time-of-day band
+(dawn / day / dusk / night), about 1.1 MB total. The band follows the sun; which
+of the three you get is random, re-rolled every 7 minutes so a dashboard left on
+all day never sits on one image.
+
+To use your own photos instead:
+
+```sh
+mkdir -p incoming/dusk
+cp ~/Downloads/mosque-sunset.jpg incoming/dusk/
+./import-bg.sh
+```
+
+Images are centre-cropped to 1920×1080, re-encoded, and registered in
+`js/bgmanifest.js`. Nothing hardcodes filenames, so this needs no code change,
+and any band you leave empty keeps its generated scenes.
+
+Composition: the wordmark sits top-left, the clock top-right, and an opaque
+prayer strip spans y=648–790. Pick images with calm corners.
+
+## Prayer times: offline first, aladhan.com as a cross-check
+
+The solar calculation in `js/praytimes.js` is the source of truth — Fajr has to
+be right at 4am with the router down. On top of that, `js/aladhan.js` fetches
+the same day from <https://aladhan.com/prayer-times-api> once daily and adopts
+their minutes when they differ, so the dashboard agrees with the timetable
+people actually read. A failed sync silently leaves the offline times in place.
+
+The status line shows `synced HH:MM` or `offline times`. Settings →
+**Sync with aladhan.com** turns it off, and reports how far the two agree
+(measured: **0–1 min**).
 
 ## Modes
 
@@ -76,12 +110,16 @@ Asr madhab is **Shafi'i / Maliki / Hanbali** (one shadow length) or **Hanafi**
 ```
 config.xml      app id Miqaat0001.Miqaat; alarm + application.info privileges
 tvctl.sh        deploy CLI (copy of the IPTV one, retargeted)
+fetch-athan.sh  pull + transcode adhan audio from cdn.aladhan.com
+import-bg.sh    crop your own photos into assets/bg and write the manifest
 index.html      every screen as a hidden <section>
 styles.css      body-class screen switching; .focused for D-pad, never :focus
 js/praytimes.js solar-position prayer times — offline, ±1 min vs aladhan.com
 js/hijri.js     Umm al-Qura, exact vs ICU for 1400–1500 AH (1979–2076 CE)
 js/qibla.js     great-circle bearing to the Kaaba
 js/location.js  saved -> IP lookup -> Brunswick, ME fallback
+js/aladhan.js   daily cross-check against aladhan.com, cached per day
+js/bgmanifest.js  generated: which images belong to which time-of-day band
 js/scheduler.js tizen alarms (48h horizon) + in-app tick + wake dispatch
 js/interrupt.js capture / suspend / resume, with real app ids read off the TV
 js/settings.js  localStorage with a defaults merge
@@ -99,6 +137,7 @@ Settings → **Diagnostics** (bottom of the list). Never wait for Maghrib to tes
 | `3` | Dump running app contexts |
 | `4` / `5` | Count / re-arm alarms |
 | `6` | Fire a 10-minute reminder |
+| `7` | Force an aladhan.com re-sync |
 
 `2` is the only real test of the headline feature.
 
@@ -109,6 +148,7 @@ Settings → **Diagnostics** (bottom of the list). Never wait for Maghrib to tes
 - Hijri dates **exactly match ICU's islamic-umalqura** across 5,010 weekly
   samples spanning 96 years.
 - Qibla: Brunswick ME 61.2°, Toronto 54.6°, London 119.0°, Cape Town 23.4°.
+- Live aladhan.com sync agrees with the offline engine to **0–1 min**.
 - Every screen rendered at 1920×1080 in headless Chrome with **0 JS errors**.
 
 Still unverified — needs the TV powered on: whether a `tizen.alarm` actually

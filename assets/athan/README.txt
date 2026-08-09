@@ -1,13 +1,13 @@
-These four MP3s are PLACEHOLDERS. Each one is a text-to-speech voice announcing
-which reciter slot is playing, so the Settings > Reciter picker can be tested by
-ear on the TV. They are not athan recitations.
+Athan audio is NOT committed to this repo — it is third-party audio served by
+aladhan.com for use with their adhan player.
 
-Replace each with a real recording, keeping the filename:
+Run ./fetch-athan.sh from the project root to populate this directory. It
+downloads five recordings from cdn.aladhan.com and re-encodes them to 56 kbps
+mono (about 1.4 MB each, 7.3 MB total).
 
-  makkah.mp3    Makkah - Haram
-  madinah.mp3   Madinah - Masjid an-Nabawi
-  aqsa.mp3      Al-Aqsa
-  short.mp3     Short call (used for Fajr by default)
+The files are numbered, not named after mosques: AlAdhan publishes no reciter
+attribution, so any mosque name here would be invented. Choose by ear via
+Settings > Reciter, which plays each one as you scroll.
 
-Keep each file to a few MB; the whole .wgt should stay well under 20 MB.
-If a file is missing, the app says so and falls back to a 120-second visual athan.
+If the directory is empty the app still runs — it falls back to a 120-second
+visual athan and says so on screen.

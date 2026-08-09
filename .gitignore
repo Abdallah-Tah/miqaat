@@ -5,3 +5,9 @@ author-signature.xml
 signature1.xml
 *.wgt
 .DS_Store
+
+# third-party athan audio: run ./fetch-athan.sh
+assets/athan/*.mp3
+
+# your own background source images: run ./import-bg.sh
+incoming/
