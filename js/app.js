@@ -18,6 +18,29 @@
   var LOG_KEY = "miqaat-log-v1";
   var MAX_LOG = 24;
 
+  /* Reciters map to assets/athan/<file>.mp3. The bundled files are TTS
+     placeholders that announce which slot is playing — enough to test the
+     picker on the TV; replace them with real recordings. */
+  var ATHAN_VOICES = [
+    { key: "makkah",  label: "Makkah — Haram" },
+    { key: "madinah", label: "Madinah — Masjid an-Nabawi" },
+    { key: "aqsa",    label: "Al-Aqsa" },
+    { key: "short",   label: "Short call" }
+  ];
+
+  function voiceLabel(key) {
+    for (var i = 0; i < ATHAN_VOICES.length; i++) {
+      if (ATHAN_VOICES[i].key === key) { return ATHAN_VOICES[i].label; }
+    }
+    return key;
+  }
+
+  function voiceKeys() {
+    var out = [];
+    for (var i = 0; i < ATHAN_VOICES.length; i++) { out.push(ATHAN_VOICES[i].key); }
+    return out;
+  }
+
   var DUAS = [
     { ar: "اللَّهُمَّ بَارِكْ لَنَا فِيمَا رَزَقْتَنَا وَقِنَا عَذَابَ النَّارِ",
       en: "O Allah, bless what You have provided us and protect us from the punishment of the Fire.",
@@ -369,6 +392,44 @@
     try { audio.pause(); audio.currentTime = 0; } catch (e) { }
   }
 
+  // ---- reciter preview -----------------------------------------------------
+  var previewing = false;
+
+  function stopPreview() {
+    previewing = false;
+    stopAudio();
+    audio.onerror = null;
+    audio.onended = null;
+    if (screen === "settings") { renderSettings(); }
+  }
+
+  /* Play a reciter so the picker can be judged by ear rather than by filename.
+     A missing file is reported plainly — silence would look like a bug. */
+  function previewAthan(voiceKey) {
+    var src = "assets/athan/" + voiceKey + ".mp3";
+    stopAudio();
+    previewing = true;
+    try {
+      audio.src = src;
+      audio.volume = settings.athanVolume;
+      audio.currentTime = 0;
+      audio.onerror = function () {
+        previewing = false;
+        toast("No audio file at " + src);
+        log("PREVIEW missing " + src);
+        if (screen === "settings") { renderSettings(); }
+      };
+      audio.onended = function () { stopPreview(); };
+      var p = audio.play();
+      if (p && p["catch"]) { p["catch"](function () { }); }
+      log("PREVIEW " + voiceKey);
+    } catch (e) {
+      previewing = false;
+      toast("Couldn't play " + src);
+    }
+    if (screen === "settings") { renderSettings(); }
+  }
+
   function stopFlowTimer() {
     if (flowTimer) { clearInterval(flowTimer); flowTimer = null; }
   }
@@ -536,8 +597,10 @@
     });
     rows.push({
       label: "Asr madhab",
-      value: function () { return s.asr === "hanafi" ? "Hanafi" : "Standard"; },
-      change: function () { MiqaatSettings.set("asr", s.asr === "hanafi" ? "standard" : "hanafi"); }
+      // One shadow-length vs two. The first covers three of the four schools,
+      // so name them rather than calling it "Standard".
+      value: function () { return s.asr === "hanafi" ? "Hanafi" : "Shafi'i / Maliki / Hanbali"; },
+      change: function () { MiqaatSettings.set("asr", s.asr === "hanafi" ? "shafii" : "hanafi"); }
     });
     rows.push({
       label: "Hijri date offset",
@@ -589,9 +652,28 @@
       change: function (d) { MiqaatSettings.set("athanVolume", clampStep(s.athanVolume, d, 0, 1, 0.05)); }
     });
     rows.push({
-      label: "Voice",
-      value: function () { return s.athanVoice; },
-      change: function (d) { MiqaatSettings.set("athanVoice", cycle(["makkah", "madinah", "short"], s.athanVoice, d)); }
+      label: "Reciter",
+      value: function () { return voiceLabel(s.athanVoice); },
+      change: function (d) {
+        MiqaatSettings.set("athanVoice", cycle(voiceKeys(), s.athanVoice, d));
+        previewAthan(s.athanVoice);   // hear the change as you scroll through
+      }
+    });
+    rows.push({
+      label: "Fajr reciter",
+      value: function () { return voiceLabel(s.fajrAthan); },
+      change: function (d) {
+        MiqaatSettings.set("fajrAthan", cycle(voiceKeys(), s.fajrAthan, d));
+        previewAthan(s.fajrAthan);
+      }
+    });
+    rows.push({
+      label: "Play selected reciter",
+      value: function () { return previewing ? "Playing… (ENTER to stop)" : "Press ENTER"; },
+      change: function () { },
+      enter: function () {
+        if (previewing) { stopPreview(); } else { previewAthan(s.athanVoice); }
+      }
     });
 
     rows.push({ heading: "Location" });
@@ -888,7 +970,7 @@
       else if (r2 && r2.change) { r2.change(1); renderSettings(); }
       return true;
     }
-    if (code === KEY.BACK) { rearm(); goHome(); return true; }
+    if (code === KEY.BACK) { stopPreview(); rearm(); goHome(); return true; }
     return true;
   }
 

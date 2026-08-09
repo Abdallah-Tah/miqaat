@@ -40,19 +40,27 @@ Two limitations that follow from this and cannot be engineered away:
 Signed with the `iptv-samsung` profile — deliberately the **same Samsung cert as
 the IPTV player**, so the two apps coexist without tripping install error 118.
 
-## You need to add athan audio
+## Athan audio is a placeholder
 
-`assets/athan/` ships empty — athan recordings are not mine to redistribute.
-Drop in MP3s named after the voices in Settings:
+`assets/athan/` ships four **text-to-speech placeholders** that announce which
+reciter slot is playing — enough to test the picker by ear on the TV, but not
+athan recitations. Real recordings are not mine to redistribute.
+
+Replace each, keeping the filename:
 
 ```
-assets/athan/makkah.mp3
-assets/athan/madinah.mp3
-assets/athan/short.mp3     # used for Fajr by default
+assets/athan/makkah.mp3    Makkah - Haram
+assets/athan/madinah.mp3   Madinah - Masjid an-Nabawi
+assets/athan/aqsa.mp3      Al-Aqsa
+assets/athan/short.mp3     Short call (Fajr default)
 ```
 
-Without them the app still works: it runs a **120-second visual athan** and
-labels itself "Athan (no audio bundled)". Keep each file a few MB at most.
+Settings → **Reciter** cycles them and plays each as you scroll; **Play selected
+reciter** replays on demand. A missing file is reported on screen rather than
+failing silently, and the athan falls back to a 120-second visual call.
+
+Asr madhab is **Shafi'i / Maliki / Hanbali** (one shadow length) or **Hanafi**
+(two) — the first covers three of the four schools, hence the compound label.
 
 ## Modes
 

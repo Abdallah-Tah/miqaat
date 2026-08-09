@@ -9,13 +9,13 @@ var MiqaatSettings = (function () {
   var DEFAULTS = {
     locationMode: "auto",      // "auto" = IP lookup, "home" = the hardcoded home town
     method: "ISNA",            // North America; see MiqaatTimes.METHODS
-    asr: "standard",           // "standard" | "hanafi"
+    asr: "shafii",             // "shafii" (Maliki/Hanbali too) | "hanafi"
     hijriOffset: 0,            // ±days, local moon sighting
     mode: "home",              // "home" | "mosque" | "kids"
     ramadanAuto: true,         // switch to Ramadan dashboard during Ramadan
     adjust: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
 
-    athanVoice: "makkah",
+    athanVoice: "makkah",      // see ATHAN_VOICES in app.js
     athanVolume: 0.85,
     fajrAthan: "short",        // Fajr often wants a quieter/shorter call
 

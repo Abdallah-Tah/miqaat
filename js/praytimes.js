@@ -86,8 +86,8 @@ var MiqaatTimes = (function () {
     return noon + (direction === "ccw" ? -hourAngle : hourAngle);
   };
 
-  // Asr: when an object's shadow equals its own length times `factor`
-  // (1 = majority, 2 = Hanafi), plus the noon shadow.
+  // Asr: when an object's shadow equals its own length times `factor`,
+  // plus the noon shadow. factor 1 = Shafi'i/Maliki/Hanbali, 2 = Hanafi.
   Calculator.prototype.asrTime = function (factor, t) {
     var decl = sunPosition(this.jdate + t).declination;
     var angle = -darccot(factor + dtan(Math.abs(this.lat - decl)));
@@ -101,7 +101,7 @@ var MiqaatTimes = (function () {
      loc.tzOffsetMinutes — minutes to ADD to UTC for local time (i.e. -300 for EST).
                            Defaults to the TV's own clock, which handles DST for us.
      settings.method   — key of METHODS, default ISNA
-     settings.asr      — "standard" | "hanafi"
+     settings.asr      — "shafii" (also Maliki/Hanbali) | "hanafi"
      settings.adjust   — {fajr:0, sunrise:0, dhuhr:0, asr:0, maghrib:0, isha:0} minutes */
   function calculate(date, loc, settings) {
     settings = settings || {};
