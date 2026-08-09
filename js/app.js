@@ -13,7 +13,6 @@
 
   var SPLASH_MS = 2400;
   var TOAST_MS = 4200;
-  var RESUME_COUNTDOWN = 5;
   var ATHAN_FALLBACK_SEC = 120;   // used when no athan audio is bundled
   var LOG_KEY = "miqaat-log-v1";
   var MAX_LOG = 400;   // a whole athan cycle plus relaunches has to fit
@@ -477,6 +476,38 @@
       }
     };
     audio.onplaying = function () { log("ATHAN audio playing"); };
+
+    /* Decisive diagnostic: if currentTime advances but nothing is audible the
+       problem is routing or volume; if it stays at 0 the decoder never started.
+       Silence alone cannot tell those apart from the sofa. */
+    [2, 6, 20].forEach(function (at) {
+      setTimeout(function () {
+        if (!athanCtx) { return; }
+        log("ATHAN +" + at + "s currentTime=" + (audio.currentTime || 0).toFixed(1)
+          + " paused=" + audio.paused
+          + " readyState=" + audio.readyState
+          + " vol=" + audio.volume
+          + " muted=" + audio.muted);
+      }, at * 1000);
+    });
+
+    /* We arrive here straight from another app that just lost the audio
+       channel. If nothing has advanced after a moment, ask once more. */
+    setTimeout(function () {
+      if (!athanCtx) { return; }
+      if (!audio.paused && audio.currentTime > 0) { return; }
+      log("ATHAN retrying play() — currentTime still 0");
+      try {
+        var p2 = audio.play();
+        if (p2 && p2["catch"]) {
+          p2["catch"](function (e) {
+            log("ATHAN ✗ retry rejected: " + (e && e.name ? e.name : "unknown"));
+          });
+        }
+      } catch (e) {
+        log("ATHAN ✗ retry threw: " + e.name);
+      }
+    }, 1500);
     audio.onstalled = function () { log("ATHAN audio stalled"); };
     audio.onerror = function () {
       if (!athanCtx) { return; }
@@ -577,7 +608,7 @@
     } else if (settings.mode === "kids") {
       startKids(prayer);
     } else {
-      startResume();
+      startResume(prayer);
     }
   }
 
@@ -611,12 +642,44 @@
     flowTimer = setInterval(function () {
       var left = endsAt - new Date().getTime();
       $("kidsCount").textContent = fmtMMSS(left);
-      if (left <= 0) { stopFlowTimer(); startResume(); }
+      if (left <= 0) { stopFlowTimer(); startResume(prayer); }
     }, 500);
   }
 
   /* Hand the TV back to whatever we interrupted. */
-  function startResume() {
+  /* The athan has finished. Before giving the TV back, say plainly that it is
+     time to pray and hold the screen for a moment — handing straight back to
+     Netflix undercuts the whole point of interrupting it. */
+  function startResume(prayer) {
+    stopFlowTimer();
+    actionIndex = 0;
+
+    var rec = MiqaatInterrupt.pending();
+    $("prayName").textContent = prayer ? prayer.label : "Prayer";
+    $("resumeCount").textContent = settings.prayReminderSeconds;
+    renderActions("resumeActions", rec ? ["Resume now", "Stay on Miqaat"] : ["Done"]);
+
+    if (!rec) {
+      $("resumeSub").textContent = "Nothing to resume.";
+      log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder · nothing to resume");
+    } else {
+      var ageSec = Math.round((new Date().getTime() - rec.at) / 1000);
+      $("resumeSub").textContent = "Resuming " + rec.label + " afterwards…";
+      log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder for "
+        + settings.prayReminderSeconds + "s · will resume " + rec.label
+        + " (" + rec.appId + "), captured " + ageSec + "s ago");
+    }
+    show("resume");
+
+    var n = settings.prayReminderSeconds;
+    flowTimer = setInterval(function () {
+      n--;
+      $("resumeCount").textContent = n > 0 ? n : 0;
+      if (n <= 0) { stopFlowTimer(); doResume(); }
+    }, 1000);
+  }
+
+  function doResume() {
     stopFlowTimer();
     var rec = MiqaatInterrupt.pending();
     if (!rec) {
@@ -624,31 +687,15 @@
       goHome();
       return;
     }
-
-    var ageSec = Math.round((new Date().getTime() - rec.at) / 1000);
-    $("resumeSub").textContent = "Resuming " + rec.label + "…";
-    show("resume");
-    var n = RESUME_COUNTDOWN;
-    $("resumeCount").textContent = n;
-    log("RESUME ▶ " + rec.label + " (" + rec.appId + ") captured " + ageSec
-      + "s ago · counting down " + n + "s");
-
-    flowTimer = setInterval(function () {
-      n--;
-      $("resumeCount").textContent = n > 0 ? n : 0;
-      if (n <= 0) {
-        stopFlowTimer();
-        /* Last line guaranteed to be written while we are still alive: the
-           launch below foregrounds the other app, which suspends us. */
-        log("RESUME calling launch(" + rec.appId + ")");
-        MiqaatInterrupt.resume(function (ok, r) {
-          log(ok ? ("RESUME ✓ launched " + r.label + " — Miqaat backgrounding now")
-                 : ("RESUME ✗ launch failed for " + (r ? r.appId : "?")));
-          if (!ok) { toast("Couldn't reopen " + (r ? r.label : "the app")); }
-          goHome();
-        });
-      }
-    }, 1000);
+    /* Last line guaranteed to be written while we are still alive: the launch
+       below foregrounds the other app, which suspends us. */
+    log("RESUME calling launch(" + rec.appId + ")");
+    MiqaatInterrupt.resume(function (ok, r) {
+      log(ok ? ("RESUME ✓ launched " + r.label + " — Miqaat backgrounding now")
+             : ("RESUME ✗ launch failed for " + (r ? r.appId : "?")));
+      if (!ok) { toast("Couldn't reopen " + (r ? r.label : "the app")); }
+      goHome();
+    });
   }
 
   function goHome() {
@@ -777,6 +824,13 @@
       label: "Ramadan dashboard",
       value: function () { return s.ramadanAuto ? "Automatic" : "Off"; },
       change: function () { MiqaatSettings.set("ramadanAuto", !s.ramadanAuto); }
+    });
+    rows.push({
+      label: "\"Go and pray\" reminder",
+      value: function () { return s.prayReminderSeconds + " s before resuming"; },
+      change: function (d) {
+        MiqaatSettings.set("prayReminderSeconds", clampStep(s.prayReminderSeconds, d, 5, 300, 5));
+      }
     });
     rows.push({
       label: "Kids hold",
@@ -1260,9 +1314,23 @@
       case "salah":
         if (code === KEY.BACK) { goHome(); }
         break;
-      case "resume":
-        if (code === KEY.BACK) { stopFlowTimer(); goHome(); }
+      case "resume": {
+        var rlabels = MiqaatInterrupt.pending() ? ["Resume now", "Stay on Miqaat"] : ["Done"];
+        var rr = handleActionKey(code, rlabels, function (i) {
+          stopFlowTimer();
+          if (rlabels.length === 1 || i === 0) {
+            log("PRAY  user chose: resume now");
+            doResume();
+          } else {
+            log("PRAY  user chose: stay on Miqaat");
+            MiqaatInterrupt.clear();
+            goHome();
+          }
+        });
+        if (rr === "render") { renderActions("resumeActions", rlabels); }
+        else if (code === KEY.BACK) { stopFlowTimer(); log("PRAY  dismissed with BACK"); goHome(); }
         break;
+      }
     }
 
     if (handled) { ev.preventDefault(); }

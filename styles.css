@@ -426,6 +426,19 @@ html, body {
   text-transform: uppercase;
   margin-top: 18px;
 }
+.pray-name {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 104px;
+  line-height: 1.05;
+  margin-top: 6px;
+  color: #fbf7ee;
+}
+.pray-call {
+  font-size: 40px;
+  margin-top: 4px;
+  color: #e9c46a;
+  letter-spacing: 1px;
+}
 .resume-sub {
   font-size: 28px;
   margin-top: 10px;
@@ -633,3 +646,14 @@ html, body {
   transition: opacity 300ms ease;
 }
 .toast.on { opacity: 1; }
+
+/* Audio-only, but it must stay in the layout: a display:none video element is
+   not guaranteed to decode on Tizen. Park it off-screen instead. */
+.athan-player {
+  position: absolute;
+  left: -10px;
+  top: -10px;
+  width: 8px;
+  height: 8px;
+  opacity: 0.01;
+}

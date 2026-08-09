@@ -26,6 +26,7 @@ var MiqaatSettings = (function () {
 
     iqamahOffset: { fajr: 20, dhuhr: 10, asr: 10, maghrib: 5, isha: 10 },
     kidsDelayMinutes: 10,
+    prayReminderSeconds: 20,   // "go and pray" dwell before handing the TV back
 
     twentyFourHour: true
   };

@@ -88,13 +88,15 @@
     </div>
   </section>
 
-  <!-- ---------- resume handoff ---------- -->
+  <!-- ---------- go and pray, then hand back ---------- -->
   <section id="resume" class="screen center">
     <div class="resume-wrap">
-      <div class="tick">✓</div>
-      <div class="resume-title">ATHAN COMPLETED</div>
+      <div class="card-kicker">IT'S TIME FOR</div>
+      <div class="pray-name" id="prayName">Dhuhr</div>
+      <div class="pray-call">Go and pray</div>
+      <div class="ring"><span id="resumeCount">20</span></div>
       <div class="resume-sub" id="resumeSub">Resuming your program…</div>
-      <div class="ring"><span id="resumeCount">5</span></div>
+      <div class="actions" id="resumeActions"></div>
     </div>
   </section>
 
@@ -181,7 +183,10 @@
   </section>
 
   <div id="toast" class="toast"></div>
-  <audio id="athanAudio" preload="none"></audio>
+  <!-- Athan playback goes through <video>, not <audio>: on Tizen the video
+       element maps to the hardware AVPlay path (the same one the IPTV player
+       uses successfully on this set), whereas <audio> support is patchy. -->
+  <video id="athanAudio" class="athan-player" preload="auto" playsinline></video>
 
   <script src="js/bgmanifest.js"></script>
   <script src="js/settings.js"></script>
