@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://local.smarttv/miqaat"
+        version="1.0.0"
+        viewmodes="maximized">
+    <tizen:application id="Miqaat0001.Miqaat" package="Miqaat0001" required_version="2.4"/>
+    <name>Miqaat</name>
+    <description>Prayer times dashboard with automatic Athan and media interruption.</description>
+    <author email="local@example.com" href="https://local.smarttv">Local</author>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/prelaunch.support" value="true"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.info"/>
+    <tizen:privilege name="http://tizen.org/privilege/alarm"/>
+    <tizen:privilege name="http://tizen.org/privilege/alarm.get"/>
+    <tizen:privilege name="http://tizen.org/privilege/alarm.set"/>
+    <access origin="*" subdomains="true"/>
+    <tizen:profile name="tv-samsung"/>
+    <!-- background-support + the media category keep JS alive when the app is
+         backgrounded; this is the fallback path if alarms can't preempt. -->
+    <tizen:background-category value="media"/>
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="enable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+</widget>

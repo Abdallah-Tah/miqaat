@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>Miqaat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="screen-splash">
+
+  <!-- background stack: two layers so time-of-day changes can cross-fade -->
+  <div id="bgA" class="bg"></div>
+  <div id="bgB" class="bg"></div>
+  <div class="scrim"></div>
+
+  <!-- ---------- splash ---------- -->
+  <section id="splash" class="screen splash">
+    <div class="splash-mark">
+      <div class="wordmark">miqaat</div>
+      <div class="tagline">your home knows when it's time to pray</div>
+    </div>
+  </section>
+
+  <!-- ---------- dashboard ---------- -->
+  <section id="dashboard" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <div class="wordmark">miqaat</div>
+        <div class="tagline">your home knows<br>when it's time to pray</div>
+      </div>
+      <div class="clockblock">
+        <div class="clock"><span id="clockHM">--:--</span><span class="clock-sec" id="clockS">00</span></div>
+        <div class="date-hijri" id="dateHijri">—</div>
+        <div class="date-greg" id="dateGreg">—</div>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div class="hero-label" id="heroLabel">NEXT PRAYER</div>
+      <div class="hero-name" id="heroName">—</div>
+      <div class="hero-in" id="heroIn">—</div>
+      <div class="hero-loc"><span class="pin">◈</span> <span id="heroLoc">locating…</span></div>
+    </div>
+
+    <div class="strip" id="strip"></div>
+
+    <div class="statusrow">
+      <div class="status-left">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">starting…</span>
+      </div>
+      <div class="status-right" id="athanState">ATHAN READY</div>
+    </div>
+
+    <nav class="nav" id="nav"></nav>
+  </section>
+
+  <!-- ---------- reminder overlay ---------- -->
+  <section id="reminder" class="screen center">
+    <div class="card reminder-card">
+      <!-- inline SVG: no glyph in the TV's font stack reads as a bell -->
+      <svg class="bell" viewBox="0 0 48 48" width="56" height="56" aria-hidden="true">
+        <path d="M24 5a3 3 0 0 1 3 3v1.4a11 11 0 0 1 8 10.6v7.2l3.2 5.1A1.6 1.6 0 0 1 36.8 35H11.2a1.6 1.6 0 0 1-1.4-2.7L13 27.2V20a11 11 0 0 1 8-10.6V8a3 3 0 0 1 3-3z"
+              fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>
+        <path d="M19.5 38.5a4.7 4.7 0 0 0 9 0" fill="none" stroke="currentColor"
+              stroke-width="2.6" stroke-linecap="round"/>
+      </svg>
+      <div class="card-kicker" id="remKicker">MAGHRIB IN</div>
+      <div class="card-big" id="remMinutes">10</div>
+      <div class="card-sub">MINUTES</div>
+      <div class="card-time" id="remTime">--:--</div>
+      <p class="card-note" id="remNote">Your program will pause automatically when the Athan begins.</p>
+      <div class="actions" id="remActions"></div>
+    </div>
+  </section>
+
+  <!-- ---------- athan ---------- -->
+  <section id="athan" class="screen center">
+    <div class="athan-wrap">
+      <div class="athan-ar" id="athanAr">اللهُ أَكْبَر</div>
+      <div class="athan-name" id="athanName">MAGHRIB</div>
+      <div class="athan-time" id="athanTime">--:--</div>
+      <div class="athan-state" id="athanProgressLabel">Athan in progress</div>
+      <div class="progress"><div class="progress-fill" id="athanProgress"></div></div>
+      <div class="athan-elapsed" id="athanElapsed">00:00</div>
+      <p class="card-note" id="athanNote">Your program will resume after the Athan.</p>
+      <div class="actions" id="athanActions"></div>
+    </div>
+  </section>
+
+  <!-- ---------- resume handoff ---------- -->
+  <section id="resume" class="screen center">
+    <div class="resume-wrap">
+      <div class="tick">✓</div>
+      <div class="resume-title">ATHAN COMPLETED</div>
+      <div class="resume-sub" id="resumeSub">Resuming your program…</div>
+      <div class="ring"><span id="resumeCount">5</span></div>
+    </div>
+  </section>
+
+  <!-- ---------- iqamah ---------- -->
+  <section id="iqamah" class="screen center">
+    <div class="athan-wrap">
+      <div class="athan-name" id="iqamahName">MAGHRIB</div>
+      <div class="card-kicker">IQAMAH IN</div>
+      <div class="iqamah-count" id="iqamahCount">10:00</div>
+      <p class="card-note">Please take your place in the row.</p>
+    </div>
+  </section>
+
+  <!-- ---------- salah ---------- -->
+  <section id="salah" class="screen center">
+    <div class="athan-wrap">
+      <div class="athan-ar">الصلاة</div>
+      <div class="resume-sub">Prayer in progress</div>
+    </div>
+  </section>
+
+  <!-- ---------- kids ---------- -->
+  <section id="kids" class="screen center">
+    <div class="kids-wrap">
+      <div class="kids-title" id="kidsTitle">It's Maghrib time</div>
+      <div class="kids-sub">Let's pray together</div>
+      <div class="ring big"><span id="kidsCount">10:00</span></div>
+      <p class="card-note">Your program will come back when the timer ends.</p>
+    </div>
+  </section>
+
+  <!-- ---------- qibla ---------- -->
+  <section id="qibla" class="screen">
+    <h2 class="page-title">Qibla</h2>
+    <div class="qibla-wrap">
+      <div class="compass">
+        <div class="rose">
+          <span class="card-n">N</span><span class="card-e">E</span>
+          <span class="card-s">S</span><span class="card-w">W</span>
+        </div>
+        <div class="needle" id="needle"><div class="needle-arrow"></div></div>
+        <div class="hub"></div>
+      </div>
+      <div class="qibla-facts">
+        <div class="qibla-deg" id="qiblaDeg">—</div>
+        <div class="qibla-point" id="qiblaPoint">—</div>
+        <div class="qibla-dist" id="qiblaDist">—</div>
+        <p class="card-note">Measured clockwise from <b>true</b> north — not magnetic north. Align using a map or a phone compass set to true north.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- dua ---------- -->
+  <section id="dua" class="screen">
+    <h2 class="page-title">Dua</h2>
+    <div class="dua-wrap">
+      <div class="dua-ar" id="duaAr">—</div>
+      <div class="dua-en" id="duaEn">—</div>
+      <div class="dua-src" id="duaSrc">—</div>
+      <p class="card-note">LEFT / RIGHT to browse.</p>
+    </div>
+  </section>
+
+  <!-- ---------- settings ---------- -->
+  <section id="settings" class="screen">
+    <h2 class="page-title">Settings</h2>
+    <div class="settings-list" id="settingsList"></div>
+    <p class="card-note settings-help">UP / DOWN to move · LEFT / RIGHT to change · BACK to close</p>
+  </section>
+
+  <!-- ---------- debug ---------- -->
+  <section id="debug" class="screen">
+    <h2 class="page-title">Diagnostics</h2>
+    <ul class="keys">
+      <li><b>1</b> — fire athan now (full capture → athan → resume)</li>
+      <li><b>2</b> — arm a real alarm +60s, then switch to Netflix</li>
+      <li><b>3</b> — dump running app contexts</li>
+      <li><b>4</b> — list armed alarms &nbsp;·&nbsp; <b>5</b> — re-arm all</li>
+      <li><b>6</b> — fire a 10-minute reminder now</li>
+      <li><b>0</b> — clear log &nbsp;·&nbsp; <b>BACK</b> — close</li>
+    </ul>
+    <pre id="log" class="log"></pre>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <audio id="athanAudio" preload="none"></audio>
+
+  <script src="js/settings.js"></script>
+  <script src="js/praytimes.js"></script>
+  <script src="js/hijri.js"></script>
+  <script src="js/qibla.js"></script>
+  <script src="js/location.js"></script>
+  <script src="js/interrupt.js"></script>
+  <script src="js/scheduler.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
