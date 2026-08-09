@@ -8,7 +8,7 @@
     LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13,
     BACK: 10009, EXIT: 10182,
     PLAY: 415, PAUSE: 19, STOP: 413, PLAYPAUSE: 10252,
-    N0: 48, N1: 49, N2: 50, N3: 51, N4: 52, N5: 53, N6: 54, N7: 55
+    N0: 48, N1: 49, N2: 50, N3: 51, N4: 52, N5: 53, N6: 54, N7: 55, N8: 56, N9: 57
   };
 
   var SPLASH_MS = 2400;
@@ -16,7 +16,7 @@
   var RESUME_COUNTDOWN = 5;
   var ATHAN_FALLBACK_SEC = 120;   // used when no athan audio is bundled
   var LOG_KEY = "miqaat-log-v1";
-  var MAX_LOG = 24;
+  var MAX_LOG = 400;   // a whole athan cycle plus relaunches has to fit
 
   /* Reciters map to assets/athan/<file>.mp3, fetched by ./fetch-athan.sh from
      AlAdhan's CDN. They are numbered, not named after mosques: AlAdhan
@@ -96,14 +96,20 @@
   var audio = $("athanAudio");
 
   // ---- logging -------------------------------------------------------------
+  /* Every line is flushed to localStorage immediately, because the interesting
+     part of the athan flow is exactly where we lose control: handing the TV
+     back to Netflix backgrounds us and freezes JS mid-function. Anything not
+     already persisted at that instant is gone. Lines carry the date as well as
+     the time so a trace spanning several relaunches still reads in order. */
   function log(msg) {
     var d = new Date();
     function p(n) { return (n < 10 ? "0" : "") + n; }
-    var line = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "  " + msg;
+    var line = p(d.getMonth() + 1) + "/" + p(d.getDate()) + " "
+      + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+      + "  " + msg;
     logLines.push(line);
     while (logLines.length > MAX_LOG) { logLines.shift(); }
-    var el = $("log");
-    if (el) { el.textContent = logLines.join("\n"); }
+    if (screen === "debug") { renderLog(); }
     try { console.log("[miqaat] " + line); } catch (e) { }
     try { localStorage.setItem(LOG_KEY, JSON.stringify(logLines)); } catch (e) { }
   }
@@ -113,6 +119,40 @@
       var raw = localStorage.getItem(LOG_KEY);
       if (raw) { logLines = JSON.parse(raw) || []; }
     } catch (e) { logLines = []; }
+  }
+
+  /* The Diagnostics panel is the only usable console on this TV — `sdb dlog`
+     drops its connection on this firmware — so the log has to be scrollable
+     and filterable on screen. */
+  var logScroll = 0;          // lines from the bottom
+  var logFilter = "";         // "" = everything, otherwise a prefix match
+  var LOG_ROWS = 22;
+
+  function filteredLog() {
+    if (!logFilter) { return logLines; }
+    var out = [];
+    for (var i = 0; i < logLines.length; i++) {
+      if (logLines[i].indexOf(logFilter) !== -1) { out.push(logLines[i]); }
+    }
+    return out;
+  }
+
+  function renderLog() {
+    var el = $("log");
+    if (!el) { return; }
+    var lines = filteredLog();
+    var maxScroll = Math.max(0, lines.length - LOG_ROWS);
+    if (logScroll > maxScroll) { logScroll = maxScroll; }
+    if (logScroll < 0) { logScroll = 0; }
+    var end = lines.length - logScroll;
+    var start = Math.max(0, end - LOG_ROWS);
+
+    var header = lines.length + " line" + (lines.length === 1 ? "" : "s")
+      + (logFilter ? " matching \"" + logFilter + "\"" : "")
+      + (logScroll > 0 ? "   ↑ " + logScroll + " newer below" : "   (latest)");
+
+    el.textContent = header + "\n" + new Array(header.length + 1).join("─") + "\n"
+      + lines.slice(start, end).join("\n");
   }
 
   // ---- helpers -------------------------------------------------------------
@@ -391,17 +431,28 @@
     show("athan");
     updateBackground(new Date());
 
+    var src = athanSrcFor(prayer);
     var durationSec = ATHAN_FALLBACK_SEC;
     var usingAudio = false;
     try {
-      audio.src = athanSrcFor(prayer);
+      audio.src = src;
       audio.volume = settings.athanVolume;
       audio.currentTime = 0;
       var playPromise = audio.play();
-      if (playPromise && playPromise.catch) { playPromise["catch"](function () { }); }
+      if (playPromise && playPromise["catch"]) {
+        playPromise["catch"](function (e) {
+          // Autoplay refusal looks identical to silence from the sofa, and it
+          // resolves after athanCtx is assigned — so correct the record too,
+          // otherwise the end-of-athan line claims audio played when it didn't.
+          if (athanCtx) { athanCtx.usingAudio = false; }
+          log("ATHAN ✗ play() rejected: " + (e && e.name ? e.name : "unknown")
+            + " — no sound will come out");
+        });
+      }
       usingAudio = true;
     } catch (e) {
       usingAudio = false;
+      log("ATHAN play() threw: " + e.name + " " + e.message);
     }
 
     athanCtx = {
@@ -409,24 +460,38 @@
       startedAt: new Date().getTime(),
       durationSec: durationSec,
       usingAudio: usingAudio,
-      wokenByAlarm: wokenByAlarm
+      wokenByAlarm: wokenByAlarm,
+      src: src
     };
+
+    log("ATHAN ▶ " + prayer.label + " at " + fmtMinutes(prayer.minutes)
+      + " · " + (wokenByAlarm ? "alarm wake" : "in-app tick")
+      + " · mode=" + settings.mode
+      + " · src=" + src.split("/").pop()
+      + " · vol=" + Math.round(settings.athanVolume * 100) + "%");
 
     audio.onloadedmetadata = function () {
       if (athanCtx && audio.duration && isFinite(audio.duration)) {
         athanCtx.durationSec = audio.duration;
+        log("ATHAN audio ready, " + Math.round(audio.duration) + "s");
       }
     };
+    audio.onplaying = function () { log("ATHAN audio playing"); };
+    audio.onstalled = function () { log("ATHAN audio stalled"); };
     audio.onerror = function () {
       if (!athanCtx) { return; }
       athanCtx.usingAudio = false;
-      $("athanProgressLabel").textContent = "Athan (no audio bundled)";
-      log("ATHAN no audio at " + athanSrcFor(prayer) + " — running visual only");
+      $("athanProgressLabel").textContent = "Athan (no audio file)";
+      var code = (audio.error && audio.error.code) ? audio.error.code : "?";
+      log("ATHAN ✗ no audio at " + src + " (err " + code + ") — visual only, "
+        + ATHAN_FALLBACK_SEC + "s");
     };
-    audio.onended = function () { finishAthan(); };
+    audio.onended = function () {
+      log("ATHAN audio ended naturally");
+      finishAthan("audio-ended");
+    };
 
     $("athanProgressLabel").textContent = "Athan in progress";
-    log("ATHAN " + prayer.label + (wokenByAlarm ? " (alarm wake)" : " (in-app)"));
 
     flowTimer = setInterval(function () {
       if (!athanCtx) { return; }
@@ -434,7 +499,7 @@
       var pct = Math.min(100, (elapsed / athanCtx.durationSec) * 100);
       $("athanProgress").style.width = pct + "%";
       $("athanElapsed").textContent = fmtMMSS((athanCtx.durationSec - elapsed) * 1000);
-      if (elapsed >= athanCtx.durationSec) { finishAthan(); }
+      if (elapsed >= athanCtx.durationSec) { finishAthan("duration-elapsed"); }
     }, 500);
   }
 
@@ -484,9 +549,17 @@
     if (flowTimer) { clearInterval(flowTimer); flowTimer = null; }
   }
 
-  function finishAthan() {
-    if (!athanCtx) { return; }
+  function finishAthan(reason) {
+    if (!athanCtx) {
+      log("ATHAN finish ignored — no athan in progress (" + (reason || "?") + ")");
+      return;
+    }
     var prayer = athanCtx.prayer;
+    var ranSec = Math.round((new Date().getTime() - athanCtx.startedAt) / 1000);
+    log("ATHAN ■ " + prayer.label + " ended after " + ranSec + "s"
+      + " (expected " + Math.round(athanCtx.durationSec) + "s)"
+      + " · reason=" + (reason || "unspecified")
+      + " · audio=" + (athanCtx.usingAudio ? "yes" : "no"));
     athanCtx = null;
     stopFlowTimer();
     stopAudio();
@@ -495,6 +568,10 @@
 
   /* What happens once the call ends is the whole difference between the modes. */
   function afterAthan(prayer) {
+    var rec = MiqaatInterrupt.pending();
+    log("AFTER " + prayer.label + " · mode=" + settings.mode
+      + " · interrupted=" + (rec ? rec.label + " (" + rec.appId + ")" : "nothing")
+      + " · suppressedToday=" + MiqaatInterrupt.isSuppressed());
     if (settings.mode === "mosque") {
       startIqamah(prayer);
     } else if (settings.mode === "kids") {
@@ -543,24 +620,30 @@
     stopFlowTimer();
     var rec = MiqaatInterrupt.pending();
     if (!rec) {
-      log("RESUME nothing to return to");
+      log("RESUME ✗ nothing recorded to return to — staying on the dashboard");
       goHome();
       return;
     }
 
+    var ageSec = Math.round((new Date().getTime() - rec.at) / 1000);
     $("resumeSub").textContent = "Resuming " + rec.label + "…";
     show("resume");
     var n = RESUME_COUNTDOWN;
     $("resumeCount").textContent = n;
-    log("RESUME " + rec.label + " in " + n + "s");
+    log("RESUME ▶ " + rec.label + " (" + rec.appId + ") captured " + ageSec
+      + "s ago · counting down " + n + "s");
 
     flowTimer = setInterval(function () {
       n--;
       $("resumeCount").textContent = n > 0 ? n : 0;
       if (n <= 0) {
         stopFlowTimer();
+        /* Last line guaranteed to be written while we are still alive: the
+           launch below foregrounds the other app, which suspends us. */
+        log("RESUME calling launch(" + rec.appId + ")");
         MiqaatInterrupt.resume(function (ok, r) {
-          log(ok ? ("RESUME launched " + r.label) : "RESUME launch failed");
+          log(ok ? ("RESUME ✓ launched " + r.label + " — Miqaat backgrounding now")
+                 : ("RESUME ✗ launch failed for " + (r ? r.appId : "?")));
           if (!ok) { toast("Couldn't reopen " + (r ? r.label : "the app")); }
           goHome();
         });
@@ -794,7 +877,7 @@
       label: "Diagnostics",
       value: function () { return "Press ENTER"; },
       change: function () { },
-      enter: function () { show("debug"); $("log").textContent = logLines.join("\n"); }
+      enter: function () { logScroll = 0; show("debug"); renderLog(); }
     });
     rows.push({
       label: "Reset all settings",
@@ -964,6 +1047,7 @@
   function boot() {
     loadLog();
     registerRemoteKeys();
+    log("───── launch ─────");
 
     loc = MiqaatLocation.load() || MiqaatLocation.FALLBACK;
     resolveLocation();
@@ -1034,12 +1118,22 @@
   function handleAthanKey(code) {
     var labels = ["Dismiss", "Don't interrupt today"];
     var r = handleActionKey(code, labels, function (i) {
-      if (i === 1) { MiqaatInterrupt.suppressToday(); toast("Interruption paused for today"); }
-      finishAthan();
+      if (i === 1) {
+        MiqaatInterrupt.suppressToday();
+        toast("Interruption paused for today");
+        log("ATHAN user chose: don't interrupt today");
+      } else {
+        log("ATHAN user chose: dismiss");
+      }
+      finishAthan(i === 1 ? "user-suppressed" : "user-dismissed");
     });
     if (r === "render") { renderActions("athanActions", labels); return true; }
     if (r === true) { return true; }
-    if (code === KEY.BACK || code === KEY.STOP) { finishAthan(); return true; }
+    if (code === KEY.BACK || code === KEY.STOP) {
+      log("ATHAN user pressed " + (code === KEY.STOP ? "STOP" : "BACK"));
+      finishAthan("user-back");
+      return true;
+    }
     return true;
   }
 
@@ -1112,11 +1206,28 @@
         log("TEST  forcing aladhan re-sync");
         syncTimes();
         return true;
+      case KEY.N8:
+        // The post-athan chain only; this is the trace worth reading.
+        logFilter = (logFilter === "" ? "ATHAN" : "");
+        logScroll = 0;
+        renderLog();
+        return true;
+      case KEY.N9:
+        logFilter = (logFilter === "RESUME" ? "" : "RESUME");
+        logScroll = 0;
+        renderLog();
+        return true;
+      case KEY.UP:
+        logScroll += 5; renderLog(); return true;
+      case KEY.DOWN:
+        logScroll -= 5; renderLog(); return true;
       case KEY.N0:
-        logLines = []; $("log").textContent = "";
+        logLines = []; logScroll = 0; logFilter = "";
+        renderLog();
         try { localStorage.removeItem(LOG_KEY); } catch (e) { }
         return true;
       case KEY.BACK:
+        logFilter = ""; logScroll = 0;
         renderSettings(); show("settings"); return true;
     }
     return true;

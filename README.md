@@ -138,8 +138,44 @@ Settings → **Diagnostics** (bottom of the list). Never wait for Maghrib to tes
 | `4` / `5` | Count / re-arm alarms |
 | `6` | Fire a 10-minute reminder |
 | `7` | Force an aladhan.com re-sync |
+| `8` / `9` | Filter the log to the athan chain / the resume steps |
+| `UP` / `DOWN` | Scroll the log |
 
 `2` is the only real test of the headline feature.
+
+### Reading the athan trace
+
+Every step from the call starting to control being handed back is logged, and
+each line is flushed to `localStorage` **as it happens** — the moment we relaunch
+the interrupted app, Tizen backgrounds us and freezes JS mid-function, so
+anything not already persisted is lost. The log survives that, and survives the
+relaunch afterwards; `───── launch ─────` marks each session boundary.
+
+A healthy Dhuhr cycle reads:
+
+```
+ATHAN ▶ Dhuhr at 12:45 · alarm wake · mode=home · src=adhan1.mp3 · vol=85%
+ATHAN audio ready, 213s
+ATHAN audio playing
+ATHAN audio ended naturally
+ATHAN ■ Dhuhr ended after 214s (expected 213s) · reason=audio-ended · audio=yes
+AFTER Dhuhr · mode=home · interrupted=Netflix (org.tizen.netflix-app) · suppressedToday=false
+RESUME ▶ Netflix (org.tizen.netflix-app) captured 217s ago · counting down 5s
+RESUME calling launch(org.tizen.netflix-app)
+RESUME ✓ launched Netflix — Miqaat backgrounding now
+```
+
+What the failure modes look like:
+
+| Line | Means |
+|---|---|
+| `ATHAN ✗ play() rejected: NotAllowedError` | Autoplay was blocked — screen runs, no sound |
+| `ATHAN ✗ no audio at … (err 4)` | File missing or undecodable; run `./fetch-athan.sh` |
+| `reason=duration-elapsed` with `audio=no` | Ran the 120s visual fallback, never played |
+| `AFTER … interrupted=nothing` | `getAppsContext()` saw nothing to resume |
+| `RESUME calling launch(…)` with no line after | The launch never returned — the interesting failure |
+
+Press `8` in Diagnostics to filter to exactly these lines.
 
 ## Verified
 
