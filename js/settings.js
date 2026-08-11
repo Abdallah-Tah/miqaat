@@ -16,13 +16,18 @@ var MiqaatSettings = (function () {
     ramadanAuto: true,         // switch to Ramadan dashboard during Ramadan
     adjust: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
 
-    athanVoice: "adhan1",      // see ATHAN_VOICES in app.js
+    athanVoice: "alafasy-dubai",   // regular adhan; see ATHAN_VOICES in app.js
     athanVolume: 0.85,
-    fajrAthan: "adhan5",       // a separate pick for Fajr, often a quieter one
+    fajrAthan: "nafees-fajr",      // Fajr adhan: includes the tathwib
+    /* Reciters the user has heard say "as-salatu khayrun min an-nawm".
+       Which recordings contain it cannot be determined by analysis and I
+       cannot listen, so this is user-correctable: mark one in Settings and it
+       is dropped from the Dhuhr-Isha list immediately. */
+    fajrVoices: ["nafees-fajr"],
 
     // Fajr defaults off: nobody wants the TV shouting at 4am in a bedroom.
     interrupt: { fajr: false, dhuhr: true, asr: true, maghrib: true, isha: true },
-    reminderMinutes: [10, 5],
+    reminderMinutes: 2,        // minutes before the athan to warn; 0 = off
 
     iqamahOffset: { fajr: 20, dhuhr: 10, asr: 10, maghrib: 5, isha: 10 },
     kidsDelayMinutes: 10,

@@ -9,10 +9,13 @@
 # speaker gains nothing from that, so they are re-encoded to 56 kbps mono,
 # which keeps the whole .wgt comfortably small.
 #
-# AlAdhan publishes no reciter names for these files, so they are numbered
-# rather than attributed to a mosque -- labelling one "Makkah" would be an
-# invention. Pick by ear: Settings > Reciter plays each one as you scroll.
-# They all run 3-4 minutes; none is a genuinely short call.
+# Reciter names come from https://aladhan.com/download-adhans, which attributes
+# each file. Do not invent names for CDN files that page does not list.
+#
+# IMPORTANT: some of these are FAJR adhans -- they contain
+# "as-salatu khayrun min an-nawm" ("prayer is better than sleep"), which is said
+# only at Fajr. Playing one at Maghrib is wrong. Known-Fajr files are marked
+# below and the app keeps a separate Fajr reciter setting.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -24,15 +27,17 @@ mkdir -p "$OUT"
 
 command -v ffmpeg >/dev/null || { echo "ffmpeg required: brew install ffmpeg" >&2; exit 1; }
 
-# CDN id -> local slot. a3 is deliberately absent: it is tagged
-# "The Armed Man: A Mass For Peace" (Karl Jenkins) — a choral piece, not a
-# call to prayer. a11+ return 403.
+# CDN id -> local slot. a3 is skipped: it is Karl Jenkins' "The Armed Man:
+# A Mass For Peace", a choral piece rather than a call to prayer.
+# a6 and a10 are skipped too: they exist on the CDN but the download page does
+# not attribute them, and unattributed audio is not worth shipping.
 SLOTS=(
-  "a1:adhan1"
-  "a2:adhan2"
-  "a6:adhan3"
-  "a9:adhan4"
-  "a10:adhan5"
+  "a4:alafasy-dubai"
+  "a7:alafasy-2"
+  "a9:alafasy-3"
+  "a2:ozcan"
+  "a11-mansour-al-zahrani:zahrani"
+  "a1:nafees-fajr"
 )
 
 echo "fetching athan audio from cdn.aladhan.com"

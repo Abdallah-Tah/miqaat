@@ -17,30 +17,126 @@
   var LOG_KEY = "miqaat-log-v1";
   var MAX_LOG = 400;   // a whole athan cycle plus relaunches has to fit
 
-  /* Reciters map to assets/athan/<file>.mp3, fetched by ./fetch-athan.sh from
-     AlAdhan's CDN. They are numbered, not named after mosques: AlAdhan
-     publishes no reciter attribution for these recordings, so calling one
-     "Makkah" would be invented. Durations are shown so the picker is useful
-     before you press play. */
+  /* Reciters map to assets/athan/<file>.mp3, fetched by ./fetch-athan.sh.
+     Names are AlAdhan's own attribution from aladhan.com/download-adhans.
+
+     `fajr: true` marks a recording that contains "as-salatu khayrun min
+     an-nawm" — prayer is better than sleep — which belongs only in the Fajr
+     adhan. Playing one at Maghrib is simply wrong, so those are kept out of
+     the regular list and offered for Fajr instead. */
   var ATHAN_VOICES = [
-    { key: "adhan1", label: "Adhan 1 · 3:33" },
-    { key: "adhan2", label: "Adhan 2 · 3:57" },
-    { key: "adhan3", label: "Adhan 3 · 3:15" },
-    { key: "adhan4", label: "Adhan 4 · 4:17" },
-    { key: "adhan5", label: "Adhan 5 · 3:13" }
+    { key: "alafasy-dubai", label: "Mishary Rashid Alafasy — Dubai One TV · 3:35" },
+    { key: "alafasy-2",     label: "Mishary Rashid Alafasy — II · 4:02" },
+    { key: "alafasy-3",     label: "Mishary Rashid Alafasy — III · 4:17" },
+    { key: "ozcan",         label: "Hafiz Mustafa Özcan — Turkey · 3:57" },
+    { key: "zahrani",       label: "Mansour Al-Zahrani · 2:11" },
+    { key: "nafees-fajr",   label: "Ahmad al-Nafees — Fajr adhan · 3:33", fajr: true }
   ];
 
-  function voiceLabel(key) {
+  function voiceEntry(key) {
     for (var i = 0; i < ATHAN_VOICES.length; i++) {
-      if (ATHAN_VOICES[i].key === key) { return ATHAN_VOICES[i].label; }
+      if (ATHAN_VOICES[i].key === key) { return ATHAN_VOICES[i]; }
     }
-    return key;
+    return null;
   }
 
-  function voiceKeys() {
+  function voiceLabel(key) {
+    var e = voiceEntry(key);
+    return e ? e.label : key;
+  }
+
+  /* Built-in knowledge OR the user's own correction. The built-in flags come
+     from what has actually been heard on this TV, not from guesswork — the
+     files carry no metadata saying so, and silence-segmentation cannot count
+     the utterances reliably enough to detect the extra phrase. */
+  function isFajrVoiceEntry(key) {
+    var e = voiceEntry(key);
+    if (e && e.fajr) { return true; }
+    var marked = settings.fajrVoices || [];
+    for (var i = 0; i < marked.length; i++) {
+      if (marked[i] === key) { return true; }
+    }
+    return false;
+  }
+
+  function markVoiceAsFajr(key, isFajr) {
+    var marked = (settings.fajrVoices || []).slice();
+    var at = -1;
+    for (var i = 0; i < marked.length; i++) { if (marked[i] === key) { at = i; } }
+    if (isFajr && at < 0) { marked.push(key); }
+    if (!isFajr && at >= 0) { marked.splice(at, 1); }
+    MiqaatSettings.set("fajrVoices", marked);
+
+    // Never leave the regular slot pointing at a Fajr-only recording.
+    if (isFajrVoiceEntry(settings.athanVoice)) {
+      var alt = voiceKeys(false);
+      MiqaatSettings.set("athanVoice", alt.length ? alt[0] : settings.athanVoice);
+      toast("Regular athan switched to " + voiceLabel(settings.athanVoice));
+    }
+  }
+
+  /* forFajr = true lists everything (a regular adhan at Fajr is acceptable —
+     the tathwib is recommended, not required). forFajr = false hides the
+     Fajr-only recordings, because using one at Dhuhr..Isha is not. */
+  function voiceKeys(forFajr) {
     var out = [];
-    for (var i = 0; i < ATHAN_VOICES.length; i++) { out.push(ATHAN_VOICES[i].key); }
-    return out;
+    for (var i = 0; i < ATHAN_VOICES.length; i++) {
+      // isFajrVoiceEntry, not the raw flag: a reciter the user has marked must
+      // disappear from the Dhuhr-Isha list too, which is the whole point.
+      if (!forFajr && isFajrVoiceEntry(ATHAN_VOICES[i].key)) { continue; }
+      out.push(ATHAN_VOICES[i].key);
+    }
+    return out.length ? out : [ATHAN_VOICES[0].key];
+  }
+
+  /* The adhan, phrase by phrase, so the screen can follow the recitation.
+     Repeated utterances are listed separately rather than collapsed with a
+     "×2" — the line re-animating is what makes it track the voice.
+
+     `w` is a relative duration weight: the takbir and shahada lines are drawn
+     out, the hayya-'ala lines are quicker. There is no per-file timing data,
+     so phrases are mapped proportionally onto the audio's real duration. It
+     follows the recitation closely enough to read along, but it is an
+     approximation, not a forced alignment. */
+  var ATHAN_PHRASES = [
+    { ar: "اللهُ أَكْبَر، اللهُ أَكْبَر", tr: "Allāhu akbar, Allāhu akbar", en: "God is the greatest", w: 2.2 },
+    { ar: "اللهُ أَكْبَر، اللهُ أَكْبَر", tr: "Allāhu akbar, Allāhu akbar", en: "God is the greatest", w: 2.2 },
+    { ar: "أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا الله", tr: "Ash-hadu an lā ilāha illā-llāh", en: "I bear witness that there is no god but God", w: 2.4 },
+    { ar: "أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا الله", tr: "Ash-hadu an lā ilāha illā-llāh", en: "I bear witness that there is no god but God", w: 2.4 },
+    { ar: "أَشْهَدُ أَنَّ مُحَمَّدًا رَسُولُ الله", tr: "Ash-hadu anna Muḥammadan rasūlu-llāh", en: "I bear witness that Muhammad is the Messenger of God", w: 2.4 },
+    { ar: "أَشْهَدُ أَنَّ مُحَمَّدًا رَسُولُ الله", tr: "Ash-hadu anna Muḥammadan rasūlu-llāh", en: "I bear witness that Muhammad is the Messenger of God", w: 2.4 },
+    { ar: "حَيَّ عَلَى الصَّلَاة", tr: "Ḥayya ʿalā-ṣ-ṣalāh", en: "Come to prayer", w: 1.7 },
+    { ar: "حَيَّ عَلَى الصَّلَاة", tr: "Ḥayya ʿalā-ṣ-ṣalāh", en: "Come to prayer", w: 1.7 },
+    { ar: "حَيَّ عَلَى الْفَلَاح", tr: "Ḥayya ʿalā-l-falāḥ", en: "Come to success", w: 1.7 },
+    { ar: "حَيَّ عَلَى الْفَلَاح", tr: "Ḥayya ʿalā-l-falāḥ", en: "Come to success", w: 1.7 },
+    { ar: "اللهُ أَكْبَر، اللهُ أَكْبَر", tr: "Allāhu akbar, Allāhu akbar", en: "God is the greatest", w: 2.0 },
+    { ar: "لَا إِلَهَ إِلَّا الله", tr: "Lā ilāha illā-llāh", en: "There is no god but God", w: 2.0 }
+  ];
+
+  // Said twice at Fajr only, after the second "come to success".
+  var TATHWIB = [
+    { ar: "الصَّلَاةُ خَيْرٌ مِنَ النَّوْم", tr: "Aṣ-ṣalātu khayrun mina-n-nawm", en: "Prayer is better than sleep", w: 2.2 },
+    { ar: "الصَّلَاةُ خَيْرٌ مِنَ النَّوْم", tr: "Aṣ-ṣalātu khayrun mina-n-nawm", en: "Prayer is better than sleep", w: 2.2 }
+  ];
+
+  function phrasesFor(prayerKey, voiceKey) {
+    // Only insert the tathwib when the chosen recording actually contains it.
+    if (prayerKey === "fajr" && isFajrVoiceEntry(voiceKey)) {
+      return ATHAN_PHRASES.slice(0, 10).concat(TATHWIB, ATHAN_PHRASES.slice(10));
+    }
+    return ATHAN_PHRASES;
+  }
+
+  // Cumulative weight boundaries, normalised to 0..1.
+  function phraseBounds(phrases) {
+    var total = 0, i;
+    for (i = 0; i < phrases.length; i++) { total += phrases[i].w; }
+    var bounds = [], acc = 0;
+    for (i = 0; i < phrases.length; i++) {
+      acc += phrases[i].w;
+      bounds.push(acc / total);
+    }
+    return bounds;
   }
 
   var DUAS = [
@@ -414,8 +510,7 @@
   }
 
   function athanSrcFor(prayer) {
-    var voice = (prayer.key === "fajr" && settings.fajrAthan) ? settings.fajrAthan : settings.athanVoice;
-    return "assets/athan/" + voice + ".mp3";
+    return "assets/athan/" + voiceForPrayer(prayer) + ".mp3";
   }
 
   function startAthan(prayer, wokenByAlarm) {
@@ -454,14 +549,19 @@
       log("ATHAN play() threw: " + e.name + " " + e.message);
     }
 
+    var phrases = phrasesFor(prayer.key, voiceForPrayer(prayer));
     athanCtx = {
       prayer: prayer,
       startedAt: new Date().getTime(),
       durationSec: durationSec,
       usingAudio: usingAudio,
       wokenByAlarm: wokenByAlarm,
-      src: src
+      src: src,
+      phrases: phrases,
+      bounds: phraseBounds(phrases),
+      phraseIndex: -1
     };
+    showPhrase(0);
 
     log("ATHAN ▶ " + prayer.label + " at " + fmtMinutes(prayer.minutes)
       + " · " + (wokenByAlarm ? "alarm wake" : "in-app tick")
@@ -529,9 +629,43 @@
       var elapsed = (new Date().getTime() - athanCtx.startedAt) / 1000;
       var pct = Math.min(100, (elapsed / athanCtx.durationSec) * 100);
       $("athanProgress").style.width = pct + "%";
+
+      /* Follow the recitation. Prefer the media element's own clock over
+         wall-clock elapsed: if the audio buffers or starts late, the words
+         should track the voice rather than drift away from it. */
+      var progress = athanCtx.usingAudio && audio.duration && audio.currentTime > 0
+        ? audio.currentTime / audio.duration
+        : elapsed / athanCtx.durationSec;
+      var idx = 0;
+      while (idx < athanCtx.bounds.length - 1 && progress > athanCtx.bounds[idx]) { idx++; }
+      if (idx !== athanCtx.phraseIndex) { showPhrase(idx); }
       $("athanElapsed").textContent = fmtMMSS((athanCtx.durationSec - elapsed) * 1000);
       if (elapsed >= athanCtx.durationSec) { finishAthan("duration-elapsed"); }
     }, 500);
+  }
+
+  /* Swap in a line of the adhan and replay the entrance animation. The class
+     has to be removed and reflowed before re-adding, or the browser coalesces
+     it into no change at all. */
+  function showPhrase(idx) {
+    if (!athanCtx || !athanCtx.phrases[idx]) { return; }
+    athanCtx.phraseIndex = idx;
+    var p = athanCtx.phrases[idx];
+    var ids = ["athanAr", "athanTr", "athanEn"];
+    var vals = [p.ar, p.tr, p.en];
+    for (var i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      if (!el) { continue; }
+      el.textContent = vals[i];
+      el.className = el.className.replace(/\s*phrase-in/, "");
+      void el.offsetWidth;                       // force reflow
+      el.className += " phrase-in";
+    }
+  }
+
+  function voiceForPrayer(prayer) {
+    return (prayer.key === "fajr" && settings.fajrAthan)
+      ? settings.fajrAthan : settings.athanVoice;
   }
 
   function stopAudio() {
@@ -826,6 +960,16 @@
       change: function () { MiqaatSettings.set("ramadanAuto", !s.ramadanAuto); }
     });
     rows.push({
+      label: "Warn before the athan",
+      value: function () {
+        return s.reminderMinutes > 0 ? s.reminderMinutes + " min before" : "Off";
+      },
+      change: function (d) {
+        MiqaatSettings.set("reminderMinutes", clampStep(s.reminderMinutes, d, 0, 30, 1));
+        rearm();   // the warning is a real alarm, so it has to be re-scheduled
+      }
+    });
+    rows.push({
       label: "\"Go and pray\" reminder",
       value: function () { return s.prayReminderSeconds + " s before resuming"; },
       change: function (d) {
@@ -857,18 +1001,34 @@
       change: function (d) { MiqaatSettings.set("athanVolume", clampStep(s.athanVolume, d, 0, 1, 0.05)); }
     });
     rows.push({
-      label: "Reciter",
-      value: function () { return voiceLabel(s.athanVoice); },
+      label: "Reciter (Dhuhr–Isha)",
+      value: function () {
+        return voiceLabel(s.athanVoice)
+          + (isFajrVoiceEntry(s.athanVoice) ? "   ⚠ Fajr adhan" : "");
+      },
       change: function (d) {
-        MiqaatSettings.set("athanVoice", cycle(voiceKeys(), s.athanVoice, d));
+        // Fajr-only recordings are excluded from this list on purpose.
+        MiqaatSettings.set("athanVoice", cycle(voiceKeys(false), s.athanVoice, d));
         previewAthan(s.athanVoice);   // hear the change as you scroll through
       }
     });
     rows.push({
-      label: "Fajr reciter",
-      value: function () { return voiceLabel(s.fajrAthan); },
+      label: "  ↳ says \"khayrun min an-nawm\"?",
+      value: function () {
+        return isFajrVoiceEntry(s.athanVoice) ? "Yes — Fajr only" : "No — fine for all prayers";
+      },
+      change: function () {
+        markVoiceAsFajr(s.athanVoice, !isFajrVoiceEntry(s.athanVoice));
+      }
+    });
+    rows.push({
+      label: "Reciter (Fajr)",
+      value: function () {
+        return voiceLabel(s.fajrAthan)
+          + (isFajrVoiceEntry(s.fajrAthan) ? "" : "   (no tathwib)");
+      },
       change: function (d) {
-        MiqaatSettings.set("fajrAthan", cycle(voiceKeys(), s.fajrAthan, d));
+        MiqaatSettings.set("fajrAthan", cycle(voiceKeys(true), s.fajrAthan, d));
         previewAthan(s.fajrAthan);
       }
     });
@@ -1077,8 +1237,14 @@
 
     // We are in the foreground now, which means Tizen has already suspended
     // whatever was playing. Work out what that was before doing anything else.
-    MiqaatInterrupt.capture(function (rec) {
-      if (rec) { log("CAPTURE " + rec.label); } else { log("CAPTURE nothing running"); }
+    MiqaatInterrupt.capture(function (rec, seen) {
+      log("CAPTURE running: " + (seen && seen.length ? seen.join(" | ") : "(none)"));
+      if (rec) {
+        log("CAPTURE → " + rec.label + " (" + rec.appId + ")"
+          + (rec.guessed ? "  ⚠ unrecognised app, guessed" : ""));
+      } else {
+        log("CAPTURE → nothing to resume");
+      }
 
       if (!shouldInterrupt(prayerKey)) {
         // We were not supposed to interrupt this one — give the TV straight back.
@@ -1099,6 +1265,20 @@
   }
 
   function boot() {
+    // reminderMinutes used to be an array of offsets; coerce any stored value
+    // so an upgrade doesn't feed NaN into the alarm scheduling.
+    if (typeof settings.reminderMinutes !== "number") {
+      var legacy = settings.reminderMinutes;
+      MiqaatSettings.set("reminderMinutes",
+        (legacy && legacy.length) ? Math.min.apply(Math, legacy) : 2);
+    }
+    if (!voiceEntry(settings.athanVoice) || isFajrVoiceEntry(settings.athanVoice)) {
+      MiqaatSettings.set("athanVoice", "alafasy-dubai");
+    }
+    if (!voiceEntry(settings.fajrAthan)) {
+      MiqaatSettings.set("fajrAthan", "nafees-fajr");
+    }
+
     loadLog();
     registerRemoteKeys();
     log("───── launch ─────");
@@ -1226,8 +1406,9 @@
     switch (code) {
       case KEY.N1:
         var p = MiqaatScheduler.nextPrayer(now, loc, settings);
-        MiqaatInterrupt.capture(function (rec) {
-          log("TEST  capture -> " + (rec ? rec.label : "nothing"));
+        MiqaatInterrupt.capture(function (rec, seen) {
+          log("TEST  running: " + (seen && seen.length ? seen.join(" | ") : "(none)"));
+          log("TEST  capture -> " + (rec ? rec.label + " (" + rec.appId + ")" : "nothing"));
           startAthan(p, false);
         });
         return true;
@@ -1243,7 +1424,10 @@
         } catch (e) { log("TEST  arm failed: " + e.name + " " + e.message); }
         return true;
       case KEY.N3:
-        MiqaatInterrupt.capture(function (rec) { log("TEST  contexts -> " + (rec ? rec.appId : "none")); });
+        MiqaatInterrupt.capture(function (rec, seen) {
+          log("TEST  contexts: " + (seen && seen.length ? seen.join(" | ") : "(none)"));
+          log("TEST  would resume: " + (rec ? rec.label + " (" + rec.appId + ")" : "nothing"));
+        });
         return true;
       case KEY.N4:
         log("TEST  " + MiqaatScheduler.armedCount() + " alarms armed");

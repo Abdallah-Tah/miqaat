@@ -170,10 +170,10 @@ var MiqaatScheduler = (function () {
         var p = day[i];
 
         var stamps = [{ reason: "athan", at: p.date }];
-        for (var r = 0; r < s.reminderMinutes.length; r++) {
+        if (s.reminderMinutes > 0) {
           stamps.push({
             reason: "reminder",
-            at: new Date(p.date.getTime() - s.reminderMinutes[r] * 60000)
+            at: new Date(p.date.getTime() - s.reminderMinutes * 60000)
           });
         }
 
@@ -247,8 +247,8 @@ var MiqaatScheduler = (function () {
           continue;
         }
 
-        for (var r = 0; r < s.reminderMinutes.length; r++) {
-          var mins = s.reminderMinutes[r];
+        if (s.reminderMinutes > 0) {
+          var mins = s.reminderMinutes;
           var target = p.date.getTime() - mins * 60000;
           var rk = keyFor(p) + "-" + mins;
           if (now.getTime() >= target && now.getTime() < target + 60000 &&

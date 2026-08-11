@@ -368,10 +368,39 @@ html, body {
 
 /* ---------- athan ---------- */
 .athan-ar {
-  font-size: 118px;
-  line-height: 1.35;
+  font-size: 104px;
+  line-height: 1.4;
   color: #f3dfa8;
   direction: rtl;
+  min-height: 150px;
+}
+.athan-tr {
+  font-size: 34px;
+  margin-top: 2px;
+  color: rgba(238, 242, 248, 0.88);
+  letter-spacing: 0.5px;
+  min-height: 44px;
+}
+.athan-en {
+  font-size: 24px;
+  margin-top: 4px;
+  color: rgba(238, 242, 248, 0.55);
+  min-height: 32px;
+}
+
+/* Re-triggered per phrase by removing and re-adding the class, so each line of
+   the adhan rises into place as the reciter reaches it. */
+.phrase-in {
+  -webkit-animation: phraseIn 620ms ease both;
+  animation: phraseIn 620ms ease both;
+}
+@-webkit-keyframes phraseIn {
+  from { opacity: 0; -webkit-transform: translateY(26px); }
+  to   { opacity: 1; -webkit-transform: translateY(0); }
+}
+@keyframes phraseIn {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .athan-name {
   font-size: 62px;

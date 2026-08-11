@@ -26,13 +26,29 @@ var MiqaatInterrupt = (function () {
     "MCmYXNxgcu.DisneyPlus": "Disney+",
     "LBUAQX1exg.Hulu": "Hulu",
     "Y6A54cEa22.AppleTV": "Apple TV+",
+    "Ggl33q588H.MBC": "Shahid",
+    "gzcc4LRFBF.Peacock": "Peacock TV",
+    "3KA0pm7a7V.TubiTV": "Tubi",
+    "XtU8fQk2gN.ESPN": "ESPN",
     "rJeHak5zRg.Spotify": "Spotify",
+    "org.tizen.browser": "Internet",
+    "org.tizen.tv-viewer": "Live TV",
+    "org.tizen.pvrplayer": "Recorded TV",
+    "org.tizen.bmplayer": "Music TV",
+    "org.tizen.mycontent-video-player-tv": "Video player",
     "IPTVply001.IPTVPlayer": "IPTV Player"
   };
 
-  // Background helpers and the launcher itself are never "what was playing".
+  /* Everything Tizen keeps running that is not "what the user was watching".
+     This list is deliberately broad: picking a launcher or a background daemon
+     to resume is worse than picking nothing, because it drops the user
+     somewhere they never were. Derived from `tvctl.sh applist` on this set. */
   function isSystemish(appId) {
-    return /Service$|Preview|\.Widget|org\.tizen\.(menu|homescreen|volume|ime|quickpanel)/.test(appId);
+    return /Service$|Preview|Daemon$|daemon|-app$|syspopup|helper|Helper/.test(appId)
+      || /^org\.tizen\./.test(appId)      // platform apps: menus, settings, tools
+      || /^org\.volt\./.test(appId)       // Smart Hub launcher and friends
+      || /^ise-|keyboard|^d75857a5-/.test(appId)
+      || /AdPlayer|AdSuite|addrmplayer|ADPlayer/.test(appId);
   }
 
   function ownAppId() {
@@ -45,30 +61,46 @@ var MiqaatInterrupt = (function () {
   }
 
   /* Look at what's running and decide what we interrupted.
-     Known media apps win; otherwise the first plausible non-system app. */
+
+     A recognised app always wins, even one under org.tizen.* (Netflix, Live TV
+     and the browser all live there) — so KNOWN is consulted before the
+     system-app filter, never after.
+
+     `onDone(record, contexts)` hands back every running context as well, so an
+     app we don't recognise shows up in the log instead of silently causing a
+     wrong resume. That is how Shahid was found missing. */
   function capture(onDone) {
     if (!window.tizen || !tizen.application || !tizen.application.getAppsContext) {
-      onDone(null);
+      onDone(null, []);
       return;
     }
     var mine = ownAppId();
     try {
       tizen.application.getAppsContext(function (contexts) {
+        var seen = [];
         var best = null, fallback = null;
         for (var i = 0; i < contexts.length; i++) {
           var id = contexts[i].appId;
-          if (id === mine || isSystemish(id)) { continue; }
-          if (KNOWN[id] && !best) { best = id; }
-          if (!fallback) { fallback = id; }
+          if (id === mine) { continue; }
+          var known = !!KNOWN[id];
+          var sys = isSystemish(id);
+          seen.push(id + (known ? " [known:" + KNOWN[id] + "]" : (sys ? " [system]" : " [unknown]")));
+          if (known && !best) { best = id; }
+          if (!known && !sys && !fallback) { fallback = id; }
         }
         var chosen = best || fallback;
-        if (!chosen) { onDone(null); return; }
-        var record = { appId: chosen, label: labelFor(chosen), at: new Date().getTime() };
+        if (!chosen) { onDone(null, seen); return; }
+        var record = {
+          appId: chosen,
+          label: labelFor(chosen),
+          at: new Date().getTime(),
+          guessed: !best            // true when we fell back to an unknown app
+        };
         try { localStorage.setItem(STORE_KEY, JSON.stringify(record)); } catch (e) { }
-        onDone(record);
-      }, function () { onDone(null); });
+        onDone(record, seen);
+      }, function (err) { onDone(null, ["getAppsContext failed: " + err.name]); });
     } catch (e) {
-      onDone(null);
+      onDone(null, ["getAppsContext threw: " + e.name]);
     }
   }
 
