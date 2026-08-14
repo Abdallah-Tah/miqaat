@@ -312,6 +312,8 @@
   function show(name) {
     screen = name;
     document.body.className = "screen-" + name;
+    // Force reflow to restart CSS transition on rapid screen changes
+    void document.body.offsetWidth;
   }
 
   function context() {
@@ -1521,10 +1523,18 @@
   });
 
   /* JS is frozen while backgrounded, so on the way back everything time-based
-     must be recomputed rather than resumed. */
+     must be recomputed rather than resumed.
+
+     Also capture what we're interrupting when we go to background — this is a
+     safety net for cases where the alarm fires but handleWake() didn't get a
+     clean context (e.g. race during relaunch). The capture happens here as a
+     fallback, not as the primary mechanism. */
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
       log("HIDE  backgrounded");
+      // Capture-and-store as a safety net: if the athan flow didn't manage to
+      // record what we interrupted, this gives resume() something to work with.
+      MiqaatInterrupt.captureAndStore();
       return;
     }
     log("SHOW  foregrounded");

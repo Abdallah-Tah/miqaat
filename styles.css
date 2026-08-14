@@ -16,6 +16,52 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---------- smooth screen transitions ---------- */
+.screen {
+  display: none;
+  position: absolute;
+  top: 0; left: 0;
+  width: 1920px; height: 1080px;
+  padding: 54px 64px;
+  opacity: 0;
+  -webkit-transition: opacity 280ms ease-out;
+  transition: opacity 280ms ease-out;
+}
+.screen.center {
+  display: none;
+  text-align: center;
+}
+.screen.center > * {
+  position: relative;
+  top: 50%;
+  -webkit-transform: translateY(-50%);
+  transform: translateY(-50%);
+}
+
+/* Screen fade-in when active */
+.screen-dashboard #dashboard,
+.screen-reminder #reminder,
+.screen-athan #athan,
+.screen-resume #resume,
+.screen-iqamah #iqamah,
+.screen-salah #salah,
+.screen-kids #kids,
+.screen-qibla #qibla,
+.screen-dua #dua,
+.screen-settings #settings,
+.screen-debug #debug {
+  display: block;
+  opacity: 1;
+  -webkit-transition: opacity 320ms ease-out;
+  transition: opacity 320ms ease-out;
+}
+
+/* Splash has its own animation */
+.screen-splash #splash {
+  display: block;
+  opacity: 1;
+}
+
 /* ---------- background stack ---------- */
 .bg {
   position: absolute;
@@ -57,18 +103,9 @@ html, body {
   transform: translateY(-50%);
 }
 
-.screen-splash    #splash    { display: block; }
-.screen-dashboard #dashboard { display: block; }
-.screen-reminder  #reminder  { display: block; }
-.screen-athan     #athan     { display: block; }
-.screen-resume    #resume    { display: block; }
-.screen-iqamah    #iqamah    { display: block; }
-.screen-salah     #salah     { display: block; }
-.screen-kids      #kids      { display: block; }
-.screen-qibla     #qibla     { display: block; }
-.screen-dua       #dua       { display: block; }
-.screen-settings  #settings  { display: block; }
-.screen-debug     #debug     { display: block; }
+/* Legacy class-based display rules kept for compatibility, but the new
+   opacity-based transitions above handle the visual fade. These remain as
+   a fallback for any code paths that still rely on them. */
 
 /* screens that want the room to themselves get a heavier ground */
 .screen-athan .scrim,
@@ -315,23 +352,31 @@ html, body {
   letter-spacing: 5px;
   text-transform: uppercase;
   color: rgba(238, 242, 248, 0.7);
+  -webkit-animation: fadeInUp 500ms ease-out both;
+  animation: fadeInUp 500ms ease-out both;
 }
 .card-big {
   font-size: 150px;
   font-weight: 200;
   line-height: 1.05;
+  -webkit-animation: scaleIn 600ms ease-out both;
+  animation: scaleIn 600ms ease-out both;
 }
 .card-sub {
   font-size: 22px;
   letter-spacing: 5px;
   text-transform: uppercase;
   color: rgba(238, 242, 248, 0.6);
+  -webkit-animation: fadeInUp 500ms ease-out 150ms both;
+  animation: fadeInUp 500ms ease-out 150ms both;
 }
 .card-time {
   font-size: 46px;
   font-weight: 300;
   margin-top: 12px;
   color: #e9c46a;
+  -webkit-animation: fadeInUp 500ms ease-out 200ms both;
+  animation: fadeInUp 500ms ease-out 200ms both;
 }
 .card-note {
   max-width: 760px;
