@@ -1188,6 +1188,8 @@
       log("SKIP  " + prayer.label + " (interruption off)");
       return;
     }
+    // Capture interrupted app before starting athan (same as alarm wake path)
+    MiqaatInterrupt.capture();
     startAthan(prayer, false);
   }
 
