@@ -68,7 +68,12 @@ var MiqaatInterrupt = (function () {
 
      `onDone(record, contexts)` hands back every running context as well, so an
      app we don't recognise shows up in the log instead of silently causing a
-     wrong resume. That is how Shahid was found missing. */
+     wrong resume. That is how Shahid was found missing.
+
+     Called both when Miqaat foregrounds itself (to capture what we're about to
+     interrupt) and when waking from an alarm (to capture what the alarm preempted).
+     On alarm wake, the capture must happen immediately in handleWake() before any
+     UI work — otherwise the context list may be stale. */
   function capture(onDone) {
     if (!window.tizen || !tizen.application || !tizen.application.getAppsContext) {
       onDone(null, []);
@@ -102,6 +107,16 @@ var MiqaatInterrupt = (function () {
     } catch (e) {
       onDone(null, ["getAppsContext threw: " + e.name]);
     }
+  }
+
+  /* Capture-and-store helper that doesn't need a callback. Used when we just
+     want to persist the current interrupted app without immediate action. */
+  function captureAndStore() {
+    capture(function (rec) {
+      if (rec) {
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(rec)); } catch (e) { }
+      }
+    });
   }
 
   function pending() {
@@ -161,6 +176,7 @@ var MiqaatInterrupt = (function () {
     ownAppId: ownAppId,
     labelFor: labelFor,
     capture: capture,
+    captureAndStore: captureAndStore,
     pending: pending,
     clear: clear,
     resume: resume,
