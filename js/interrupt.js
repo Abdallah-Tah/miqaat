@@ -75,6 +75,10 @@ var MiqaatInterrupt = (function () {
      On alarm wake, the capture must happen immediately in handleWake() before any
      UI work — otherwise the context list may be stale. */
   function capture(onDone) {
+    // Tolerate a missing callback: capture() is called from several paths and
+    // an undefined onDone used to throw a TypeError from inside the platform's
+    // async callback, where nothing catches it.
+    if (typeof onDone !== "function") { onDone = function () { }; }
     if (!window.tizen || !tizen.application || !tizen.application.getAppsContext) {
       onDone(null, []);
       return;
@@ -107,16 +111,6 @@ var MiqaatInterrupt = (function () {
     } catch (e) {
       onDone(null, ["getAppsContext threw: " + e.name]);
     }
-  }
-
-  /* Capture-and-store helper that doesn't need a callback. Used when we just
-     want to persist the current interrupted app without immediate action. */
-  function captureAndStore() {
-    capture(function (rec) {
-      if (rec) {
-        try { localStorage.setItem(STORE_KEY, JSON.stringify(rec)); } catch (e) { }
-      }
-    });
   }
 
   function pending() {
@@ -176,7 +170,6 @@ var MiqaatInterrupt = (function () {
     ownAppId: ownAppId,
     labelFor: labelFor,
     capture: capture,
-    captureAndStore: captureAndStore,
     pending: pending,
     clear: clear,
     resume: resume,

@@ -1188,8 +1188,12 @@
       log("SKIP  " + prayer.label + " (interruption off)");
       return;
     }
-    // Capture interrupted app before starting athan (same as alarm wake path)
-    MiqaatInterrupt.capture();
+    /* Deliberately no capture here. This path is the in-app tick, which only
+       runs while Miqaat is the foreground app — Tizen freezes our JS in the
+       background, so if this fired, the user was looking at Miqaat, not at
+       Netflix. Capturing would record whatever happens to still be resident
+       and then "resume" the user into an app they had already left.
+       The alarm-wake path in handleWake() is where a real capture belongs. */
     startAthan(prayer, false);
   }
 
@@ -1527,16 +1531,13 @@
   /* JS is frozen while backgrounded, so on the way back everything time-based
      must be recomputed rather than resumed.
 
-     Also capture what we're interrupting when we go to background — this is a
-     safety net for cases where the alarm fires but handleWake() didn't get a
-     clean context (e.g. race during relaunch). The capture happens here as a
-     fallback, not as the primary mechanism. */
+     Note: do NOT capture here. We background immediately after handing control
+     back, at which point resume() has already cleared the record on purpose.
+     Writing a fresh one here resurrects a target that was just consumed, so
+     the next athan resumes into a stale app instead of what it interrupted. */
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
       log("HIDE  backgrounded");
-      // Capture-and-store as a safety net: if the athan flow didn't manage to
-      // record what we interrupted, this gives resume() something to work with.
-      MiqaatInterrupt.captureAndStore();
       return;
     }
     log("SHOW  foregrounded");
