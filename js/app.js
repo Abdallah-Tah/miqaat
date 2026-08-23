@@ -537,6 +537,15 @@
   }
 
   function startAthan(prayer, wokenByAlarm) {
+    /* Guard re-entry. The alarm relaunches us and handleWake() starts the
+       athan, while the freshly started ticker also crosses the same prayer
+       boundary and starts it again — two overlapping players and two progress
+       timers, which the trace showed as duplicated diagnostic lines. */
+    if (athanCtx && athanCtx.prayer && athanCtx.prayer.key === prayer.key
+        && (new Date().getTime() - athanCtx.startedAt) < 15000) {
+      log("ATHAN ignoring duplicate start for " + prayer.label);
+      return;
+    }
     stopFlowTimer();
     actionIndex = 0;
 
@@ -831,7 +840,9 @@
       log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder · nothing to resume");
     } else {
       var ageSec = Math.round((new Date().getTime() - rec.at) / 1000);
-      $("resumeSub").textContent = "Resuming " + rec.label + " afterwards…";
+      $("resumeSub").textContent = "Resuming " + rec.label + " afterwards…"
+        + ((rec.candidates && rec.candidates.length > 1) ? "   (UP/DOWN to change)" : "")
+        + (rec.ambient ? "   ⚠ nothing else was open" : "");
       log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder for "
         + settings.prayReminderSeconds + "s · will resume " + rec.label
         + " (" + rec.appId + "), captured " + ageSec + "s ago");
@@ -1551,6 +1562,24 @@
         if (code === KEY.BACK) { goHome(); }
         break;
       case "resume": {
+        // Correct a wrong guess without leaving the screen; the choice sticks.
+        if (code === KEY.UP || code === KEY.DOWN) {
+          var cur = MiqaatInterrupt.pending();
+          var list = (cur && cur.candidates) || [];
+          if (list.length > 1) {
+            var at = 0;
+            for (var ci = 0; ci < list.length; ci++) {
+              if (list[ci].appId === cur.appId) { at = ci; }
+            }
+            var nx = list[(at + (code === KEY.DOWN ? 1 : list.length - 1)) % list.length];
+            var upd = MiqaatInterrupt.choose(nx.appId);
+            if (upd) {
+              $("resumeSub").textContent = "Resuming " + upd.label + " afterwards…   (UP/DOWN to change)";
+              log("PRAY  target changed to " + upd.label + " (" + upd.appId + ")");
+            }
+          }
+          break;
+        }
         var rlabels = MiqaatInterrupt.pending() ? ["Resume now", "Stay on Miqaat"] : ["Done"];
         var rr = handleActionKey(code, rlabels, function (i) {
           stopFlowTimer();

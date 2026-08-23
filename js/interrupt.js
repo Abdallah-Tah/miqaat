@@ -10,12 +10,30 @@ var MiqaatInterrupt = (function () {
 
   var STORE_KEY = "miqaat-interrupted-v1";
   var SUPPRESS_KEY = "miqaat-suppress-v1";
+  var PREFERRED_KEY = "miqaat-preferred-app-v1";
   var STALE_MS = 30 * 60 * 1000;   // older than this and we've lost the thread
 
   /* Real app ids read off the TV with `tvctl.sh applist` — three separate
      Netflix entries ship on this firmware, which is exactly why these are
      captured rather than guessed. Anything not listed still works; it just
      shows up by its raw id. */
+  /* Apps that are always resident on this TV whether or not anyone is using
+     them. org.tizen.tv-viewer (the tuner) is loaded from boot, so "it is
+     running" says nothing about whether the viewer was watching it — picking
+     it was why every resume landed on Live TV instead of Netflix.
+
+     These stay valid resume targets, but only when nothing the user actually
+     launched is running. */
+  var AMBIENT = {
+    "org.tizen.tv-viewer": true,
+    "org.tizen.tv-viewer-sub": true,
+    "org.tizen.browser": true,
+    "org.tizen.pvrplayer": true,
+    "org.tizen.bmplayer": true,
+    "org.tizen.mycontent-video-player-tv": true,
+    "org.volt.firstscreen": true
+  };
+
   var KNOWN = {
     "org.tizen.netflix-app": "Netflix",
     "org.tizen.netflixlowmem": "Netflix",
@@ -87,23 +105,54 @@ var MiqaatInterrupt = (function () {
     try {
       tizen.application.getAppsContext(function (contexts) {
         var seen = [];
-        var best = null, fallback = null;
+        var launched = [];   // apps the user actually opened
+        var ambient = [];    // resident regardless of use
+        var unknown = [];
+
         for (var i = 0; i < contexts.length; i++) {
           var id = contexts[i].appId;
           if (id === mine) { continue; }
+          var ctxId = contexts[i].id;
           var known = !!KNOWN[id];
           var sys = isSystemish(id);
-          seen.push(id + (known ? " [known:" + KNOWN[id] + "]" : (sys ? " [system]" : " [unknown]")));
-          if (known && !best) { best = id; }
-          if (!known && !sys && !fallback) { fallback = id; }
+          var tag = known ? (AMBIENT[id] ? " [ambient:" + KNOWN[id] + "]" : " [app:" + KNOWN[id] + "]")
+                          : (sys ? " [system]" : " [unknown]");
+          // context id is logged so launch-order heuristics can be evaluated
+          seen.push(id + tag + "#" + ctxId);
+
+          var entry = { appId: id, label: labelFor(id), ctxId: ctxId };
+          if (known && !AMBIENT[id]) { launched.push(entry); }
+          else if (known) { ambient.push(entry); }
+          else if (!sys) { unknown.push(entry); }
         }
-        var chosen = best || fallback;
-        if (!chosen) { onDone(null, seen); return; }
+
+        /* Order of preference:
+             1. something the user opened (Netflix, Shahid, YouTube…)
+             2. an unrecognised non-system app — also probably user-opened
+             3. an always-resident one (Live TV, browser) as a last resort
+           Within a tier, honour the app the viewer last chose to resume: when
+           several streaming apps sit preloaded in memory, nothing in
+           getAppsContext says which was on screen, so a remembered choice
+           beats an arbitrary pick. */
+        var candidates = launched.concat(unknown, ambient);
+        if (!candidates.length) { onDone(null, seen); return; }
+
+        var preferred = null;
+        try { preferred = localStorage.getItem(PREFERRED_KEY); } catch (e) { }
+        var chosen = candidates[0];
+        if (preferred) {
+          for (var j = 0; j < candidates.length; j++) {
+            if (candidates[j].appId === preferred) { chosen = candidates[j]; break; }
+          }
+        }
+
         var record = {
-          appId: chosen,
-          label: labelFor(chosen),
+          appId: chosen.appId,
+          label: chosen.label,
           at: new Date().getTime(),
-          guessed: !best            // true when we fell back to an unknown app
+          guessed: !KNOWN[chosen.appId],
+          ambient: !!AMBIENT[chosen.appId],
+          candidates: candidates      // lets the UI offer alternatives
         };
         try { localStorage.setItem(STORE_KEY, JSON.stringify(record)); } catch (e) { }
         onDone(record, seen);
@@ -131,10 +180,36 @@ var MiqaatInterrupt = (function () {
 
   /* Hand control back. Clears the record first so a failed launch can't leave
      us in a relaunch loop. */
+  function setPreferred(appId) {
+    try { localStorage.setItem(PREFERRED_KEY, appId); } catch (e) { }
+  }
+
+  function getPreferred() {
+    try { return localStorage.getItem(PREFERRED_KEY); } catch (e) { return null; }
+  }
+
+  /* Swap the pending record to another running candidate, so the viewer can
+     correct a wrong guess from the "go and pray" screen. */
+  function choose(appId) {
+    var rec = pending();
+    if (!rec) { return null; }
+    var list = rec.candidates || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].appId !== appId) { continue; }
+      rec.appId = list[i].appId;
+      rec.label = list[i].label;
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(rec)); } catch (e) { }
+      setPreferred(appId);
+      return rec;
+    }
+    return rec;
+  }
+
   function resume(onDone) {
     var rec = pending();
     clear();
     if (!rec) { onDone && onDone(false, null); return; }
+    setPreferred(rec.appId);   // whatever we hand back to becomes the default
     try {
       tizen.application.launch(rec.appId,
         function () { onDone && onDone(true, rec); },
@@ -173,6 +248,10 @@ var MiqaatInterrupt = (function () {
     pending: pending,
     clear: clear,
     resume: resume,
+    choose: choose,
+    setPreferred: setPreferred,
+    getPreferred: getPreferred,
+    AMBIENT: AMBIENT,
     suppressToday: suppressToday,
     isSuppressed: isSuppressed,
     clearSuppression: clearSuppression
