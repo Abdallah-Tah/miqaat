@@ -250,6 +250,27 @@
       + lines.slice(start, end).join("\n");
   }
 
+  /* Ship the trace to a listener on the dev machine. Fire-and-forget: if
+     nothing is listening it fails silently, which is the normal case. */
+  function postLog(reason, onDone) {
+    var url = settings.logPostUrl;
+    if (!url) { onDone && onDone(false); return; }
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true);
+      xhr.timeout = 6000;
+      xhr.setRequestHeader("Content-Type", "text/plain");
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) { onDone && onDone(xhr.status >= 200 && xhr.status < 300); }
+      };
+      xhr.ontimeout = function () { onDone && onDone(false); };
+      xhr.onerror = function () { onDone && onDone(false); };
+      xhr.send("=== " + reason + " @ " + new Date().toString() + "\n" + logLines.join("\n") + "\n");
+    } catch (e) {
+      onDone && onDone(false);
+    }
+  }
+
   // ---- helpers -------------------------------------------------------------
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -670,8 +691,18 @@
       ? settings.fajrAthan : settings.athanVoice;
   }
 
+  /* Tear the media pipeline down properly. On Tizen the video element maps to
+     hardware AVPlay, where pause() alone can leave the pipeline holding the
+     audio channel — the athan kept playing after the app was closed. Clearing
+     src and calling load() is what actually releases it. */
   function stopAudio() {
-    try { audio.pause(); audio.currentTime = 0; } catch (e) { }
+    try { audio.pause(); } catch (e) { }
+    try { audio.currentTime = 0; } catch (e) { }
+    try {
+      audio.removeAttribute("src");
+      audio.src = "";
+      audio.load();
+    } catch (e) { }
   }
 
   // ---- reciter preview -----------------------------------------------------
@@ -823,6 +854,9 @@
       goHome();
       return;
     }
+    /* Release the audio channel before the handover. While we still hold it
+       the incoming app cannot take the foreground cleanly. */
+    stopAudio();
     /* Last line guaranteed to be written while we are still alive: the launch
        below foregrounds the other app, which suspends us. */
     log("RESUME calling launch(" + rec.appId + ")");
@@ -830,6 +864,8 @@
       log(ok ? ("RESUME ✓ launched " + r.label + " — Miqaat backgrounding now")
              : ("RESUME ✗ launch failed for " + (r ? r.appId : "?")));
       if (!ok) { toast("Couldn't reopen " + (r ? r.label : "the app")); }
+      // Post before goHome(): we are about to be backgrounded and frozen.
+      postLog("after-resume");
       goHome();
     });
   }
@@ -1331,6 +1367,8 @@
   }
 
   function exitApp() {
+    stopAudio();
+    stopFlowTimer();
     try { tizen.application.getCurrentApplication().exit(); }
     catch (e) { toast("Press EXIT on the remote to close."); }
   }
@@ -1472,6 +1510,12 @@
         renderLog();
         try { localStorage.removeItem(LOG_KEY); } catch (e) { }
         return true;
+      case KEY.ENTER:
+        toast("Sending log…");
+        postLog("manual", function (ok) {
+          toast(ok ? "Log sent to " + settings.logPostUrl : "Send failed — is the listener running?");
+        });
+        return true;
       case KEY.BACK:
         logFilter = ""; logScroll = 0;
         renderSettings(); show("settings"); return true;
@@ -1537,7 +1581,11 @@
      the next athan resumes into a stale app instead of what it interrupted. */
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
-      log("HIDE  backgrounded");
+      // Never keep the athan playing once we are off screen.
+      stopAudio();
+      stopFlowTimer();
+      athanCtx = null;
+      log("HIDE  backgrounded — audio released");
       return;
     }
     log("SHOW  foregrounded");

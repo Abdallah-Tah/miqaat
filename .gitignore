@@ -11,3 +11,6 @@ assets/athan/*.mp3
 
 # your own background source images: run ./import-bg.sh
 incoming/
+
+# trace received from the TV by logserver.py
+tvlog.txt

@@ -20,12 +20,15 @@
     <tizen:privilege name="http://tizen.org/privilege/alarm.set"/>
     <access origin="*" subdomains="true"/>
     <tizen:profile name="tv-samsung"/>
-    <!-- background-support + the media category keep JS alive when the app is
-         backgrounded; this is the fallback path if alarms can't preempt. -->
-    <tizen:background-category value="media"/>
+    <!-- No background-category, and background-support is disabled.
+         Declaring the media category told Tizen to keep this app alive and
+         playing when backgrounded: the athan carried on after the app was
+         closed, and holding the audio focus stopped the handover to Netflix
+         from taking effect. It was only ever a fallback for alarms failing to
+         preempt, and alarms work on this firmware, so it is not needed. -->
     <tizen:setting screen-orientation="landscape"
                    context-menu="disable"
-                   background-support="enable"
+                   background-support="disable"
                    encryption="disable"
                    install-location="auto"
                    hwkey-event="enable"/>

@@ -30,6 +30,15 @@ IP_CACHE_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.tv_ip_cache"
 
 export PATH="$HOME/.tizen-extension-platform/server/sdktools/data/tools/ide/bin:$HOME/.tizen-extension-platform/server/sdktools/data/tools:$PATH"
 
+# sdb writes /tmp/sdb.log unconditionally; if a root-owned one is left behind
+# (a sudo run, another user) every invocation errors before it does anything.
+# /tmp is sticky so we cannot delete it — point sdb somewhere writable instead.
+export TMPDIR="${TMPDIR:-/tmp}"
+if [ -e /tmp/sdb.log ] && [ ! -w /tmp/sdb.log ]; then
+  export TMPDIR="$HOME/.sdb-tmp"
+  mkdir -p "$TMPDIR"
+fi
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 log() { echo "==> $*"; }

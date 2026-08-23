@@ -33,7 +33,12 @@ var MiqaatSettings = (function () {
     kidsDelayMinutes: 10,
     prayReminderSeconds: 20,   // "go and pray" dwell before handing the TV back
 
-    twentyFourHour: true
+    twentyFourHour: true,
+
+    /* Where Diagnostics ships the log. sdb dlog drops its connection on this
+       firmware and app data cannot be pulled, so posting the trace to a
+       listener on the dev machine is the only way to read it off the TV. */
+    logPostUrl: "http://192.168.40.9:8099/log"
   };
 
   var cache = null;
