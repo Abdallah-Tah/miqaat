@@ -1222,11 +1222,40 @@
   }
 
   // ---- scheduling glue -----------------------------------------------------
+  var TEST_ALARM_KEY = "miqaat-testalarm-v1";
+
+  /* A one-off test alarm has to survive re-arming. armAlarms() begins with
+     removeAll(), and rearm() runs whenever the location resolves or the
+     aladhan sync lands — which silently deleted the Diagnostics test alarm a
+     few seconds after it was set, so the test appeared to do nothing. */
+  function readdTestAlarm() {
+    var at = null;
+    try { at = parseInt(localStorage.getItem(TEST_ALARM_KEY), 10); } catch (e) { }
+    if (!at || isNaN(at)) { return; }
+    if (at <= new Date().getTime() + 2000) {
+      try { localStorage.removeItem(TEST_ALARM_KEY); } catch (e) { }
+      return;
+    }
+    try {
+      tizen.alarm.add(new tizen.AlarmAbsolute(new Date(at)), MiqaatInterrupt.ownAppId(),
+        new tizen.ApplicationControl("http://tizen.org/appcontrol/operation/default", null, null, null,
+          [new tizen.ApplicationControlData("reason", ["athan"]),
+           new tizen.ApplicationControlData("prayer", ["maghrib"])]));
+      log("ARM   test alarm preserved for " + new Date(at).toTimeString().slice(0, 8));
+    } catch (e) {
+      log("ARM   could not preserve test alarm: " + e.name);
+    }
+  }
+
   function rearm() {
     if (!loc) { return; }
     var n = MiqaatScheduler.armAlarms(loc, settings);
     armedCache.at = 0;   // status line should reflect this immediately
-    log("ARM   " + n + " alarms");
+    var next = MiqaatScheduler.nextPrayer(new Date(), loc, settings);
+    log("ARM   " + n + " alarms · next " + (next ? next.label + " at " + fmtMinutes(next.minutes) : "?")
+      + " · interrupt=" + (next ? settings.interrupt[next.key] : "?")
+      + " · warn=" + settings.reminderMinutes + "m");
+    readdTestAlarm();
   }
 
   function onPrayerReached(prayer) {
@@ -1343,6 +1372,13 @@
 
     var handled = handleWake();
     rearm();
+
+    /* Post the trace shortly after every start. "Nothing happened" is
+       ambiguous from the sofa — this shows whether the alarm fired at all,
+       how many are armed, and what the app thinks it is waiting for. */
+    setTimeout(function () {
+      postLog(handled ? "boot-after-alarm" : "boot");
+    }, 4000);
 
     ticker = MiqaatScheduler.createTicker(context, {
       onTick: function (now) {
@@ -1472,6 +1508,7 @@
       case KEY.N2:
         try {
           var when = new Date(now.getTime() + 60000);
+          try { localStorage.setItem(TEST_ALARM_KEY, String(when.getTime())); } catch (e) { }
           tizen.alarm.add(new tizen.AlarmAbsolute(when), MiqaatInterrupt.ownAppId(),
             new tizen.ApplicationControl("http://tizen.org/appcontrol/operation/default", null, null, null,
               [new tizen.ApplicationControlData("reason", ["athan"]),
