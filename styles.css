@@ -518,6 +518,34 @@ html, body {
   margin-top: 10px;
   color: rgba(238, 242, 248, 0.72);
 }
+
+/* Shown only when two or more running apps are equally plausible resume
+   targets, because Tizen exposes no "which one was on screen" signal. */
+.candidates {
+  margin-top: 22px;
+  display: -webkit-box;
+  display: flex;
+  -webkit-box-pack: center;
+  justify-content: center;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+.pill {
+  padding: 14px 28px;
+  margin: 6px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: rgba(238, 242, 248, 0.78);
+}
+.pill.focused {
+  border-color: #e9c46a;
+  background: #e9c46a;
+  color: #1a1408;
+  font-weight: 600;
+}
 .ring {
   width: 132px; height: 132px;
   margin: 30px auto 0;

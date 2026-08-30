@@ -137,6 +137,20 @@ var MiqaatInterrupt = (function () {
         var candidates = launched.concat(unknown, ambient);
         if (!candidates.length) { onDone(null, seen); return; }
 
+        /* Ambiguous when the strongest tier has more than one member. Tizen
+           gives third-party apps no "which app was in front" signal — Netflix
+           and Shahid can both sit resident at once, both genuinely apps the
+           user opened, and getAppsContext() cannot tell them apart. Remembering
+           the last choice is a reasonable tiebreaker when the SAME ambiguity
+           recurs, but it is actively wrong the moment the user switches to a
+           different one of the resident apps, which is what happened here:
+           Netflix was resumed once, then remembered, then wrongly reused when
+           the user had moved on to Shahid. There is no fix for that by
+           guessing better — the honest fix is to stop guessing silently and
+           ask, which is what the "ambiguous" flag drives in the UI. */
+        var primaryTier = launched.length ? launched : (unknown.length ? unknown : ambient);
+        var ambiguous = primaryTier.length > 1;
+
         var preferred = null;
         try { preferred = localStorage.getItem(PREFERRED_KEY); } catch (e) { }
         var chosen = candidates[0];
@@ -152,6 +166,7 @@ var MiqaatInterrupt = (function () {
           at: new Date().getTime(),
           guessed: !KNOWN[chosen.appId],
           ambient: !!AMBIENT[chosen.appId],
+          ambiguous: ambiguous,
           candidates: candidates      // lets the UI offer alternatives
         };
         try { localStorage.setItem(STORE_KEY, JSON.stringify(record)); } catch (e) { }

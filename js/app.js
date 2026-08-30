@@ -826,30 +826,61 @@
   /* The athan has finished. Before giving the TV back, say plainly that it is
      time to pray and hold the screen for a moment — handing straight back to
      Netflix undercuts the whole point of interrupting it. */
+  var MIN_AMBIGUOUS_HOLD_SEC = 15;
+
+  /* Render the running candidates as selectable pills. Only called when
+     rec.ambiguous — Tizen has no "which app was on screen" signal, so instead
+     of guessing silently (and getting it wrong the moment the user switches
+     between two equally-resident apps), every real option is shown and
+     UP/DOWN picks. */
+  function renderCandidatePills(rec) {
+    var el = $("resumeCandidates");
+    if (!rec || !rec.candidates || rec.candidates.length < 2) { el.innerHTML = ""; return; }
+    var html = "";
+    for (var i = 0; i < rec.candidates.length; i++) {
+      var c = rec.candidates[i];
+      html += '<div class="pill' + (c.appId === rec.appId ? " focused" : "") + '">' + c.label + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
   function startResume(prayer) {
     stopFlowTimer();
     actionIndex = 0;
 
     var rec = MiqaatInterrupt.pending();
     $("prayName").textContent = prayer ? prayer.label : "Prayer";
-    $("resumeCount").textContent = settings.prayReminderSeconds;
     renderActions("resumeActions", rec ? ["Resume now", "Stay on Miqaat"] : ["Done"]);
+    renderCandidatePills(rec);
+
+    var holdSec = settings.prayReminderSeconds;
 
     if (!rec) {
+      $("resumeKicker").textContent = "IT'S TIME FOR";
       $("resumeSub").textContent = "Nothing to resume.";
       log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder · nothing to resume");
+    } else if (rec.ambiguous) {
+      // Several resident apps are equally plausible; give the viewer a real
+      // chance to correct the guess before it's acted on.
+      holdSec = Math.max(holdSec, MIN_AMBIGUOUS_HOLD_SEC);
+      $("resumeKicker").textContent = "MULTIPLE APPS WERE OPEN";
+      $("resumeSub").textContent = "UP / DOWN to choose — resuming " + rec.label + "…";
+      log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder, AMBIGUOUS among "
+        + rec.candidates.length + " candidates, defaulting to " + rec.label
+        + " (" + rec.appId + ") for " + holdSec + "s");
     } else {
       var ageSec = Math.round((new Date().getTime() - rec.at) / 1000);
+      $("resumeKicker").textContent = "IT'S TIME FOR";
       $("resumeSub").textContent = "Resuming " + rec.label + " afterwards…"
-        + ((rec.candidates && rec.candidates.length > 1) ? "   (UP/DOWN to change)" : "")
         + (rec.ambient ? "   ⚠ nothing else was open" : "");
       log("PRAY  ▶ " + (prayer ? prayer.label : "?") + " reminder for "
-        + settings.prayReminderSeconds + "s · will resume " + rec.label
+        + holdSec + "s · will resume " + rec.label
         + " (" + rec.appId + "), captured " + ageSec + "s ago");
     }
+    $("resumeCount").textContent = holdSec;
     show("resume");
 
-    var n = settings.prayReminderSeconds;
+    var n = holdSec;
     flowTimer = setInterval(function () {
       n--;
       $("resumeCount").textContent = n > 0 ? n : 0;
@@ -1611,7 +1642,8 @@
             var nx = list[(at + (code === KEY.DOWN ? 1 : list.length - 1)) % list.length];
             var upd = MiqaatInterrupt.choose(nx.appId);
             if (upd) {
-              $("resumeSub").textContent = "Resuming " + upd.label + " afterwards…   (UP/DOWN to change)";
+              $("resumeSub").textContent = "UP / DOWN to choose — resuming " + upd.label + "…";
+              renderCandidatePills(upd);
               log("PRAY  target changed to " + upd.label + " (" + upd.appId + ")");
             }
           }
