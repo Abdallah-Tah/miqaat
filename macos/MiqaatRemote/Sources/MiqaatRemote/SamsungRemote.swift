@@ -59,7 +59,6 @@ final class SamsungRemote: ObservableObject {
     func disconnect() {
         generation = UUID()
         connected = false
-        pendingKeys.removeAll()
         socket?.cancel(with: .normalClosure, reason: nil)
         session?.invalidateAndCancel()
         socket = nil
