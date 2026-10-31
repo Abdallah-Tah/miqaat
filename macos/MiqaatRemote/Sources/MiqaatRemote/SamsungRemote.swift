@@ -4,15 +4,15 @@ import Foundation
 /// Uses the TV's local (unencrypted) WebSocket endpoint on port 8001.
 @MainActor
 final class SamsungRemote: ObservableObject {
-    @Published var address: String = UserDefaults.standard.string(forKey: "tvAddress") ?? ""
+    @Published var address: String = UserDefaults.standard.string(forKey: "tvAddress") ?? "192.168.40.21"
     @Published private(set) var status = "Not connected"
     @Published private(set) var connected = false
 
     private var socket: URLSessionWebSocketTask?
     private var session: URLSession?
     private var generation = UUID()
-    private var pendingKeys: [String] = []
     private let clientName = "Miqaat Mac Remote"
+    @Published var secureConnection = false
 
     func connect() {
         disconnect()
@@ -46,9 +46,14 @@ final class SamsungRemote: ObservableObject {
         let task = newSession.webSocketTask(with: url)
         session = newSession
         socket = task
-        status = "Connecting… approve Miqaat Mac Remote on your TV."
+        status = "Connecting on port \\(port)… approve access on the TV."
         task.resume()
         receive(on: task, id: id, host: host)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard let self, self.generation == id, !self.connected else { return }
+            self.status = "No approval received. Check TV and IP, or try TLS port 8002."
+        }
     }
 
     func disconnect() {
