@@ -28,6 +28,9 @@ struct RemoteView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(emerald)
                     }
+                    Toggle("Use secure port 8002 (newer TVs)", isOn: $remote.secureConnection)
+                        .font(.caption)
+                        .tint(emerald)
                     HStack(spacing: 7) {
                         Circle().fill(remote.connected ? emerald : .orange).frame(width: 7, height: 7)
                         Text(remote.status).font(.caption).foregroundStyle(.secondary)
@@ -75,7 +78,7 @@ struct RemoteView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("MIQAAT / DIAGNOSTICS").font(.caption.weight(.semibold))
                         .tracking(1.5).foregroundStyle(emerald)
-                    Text("Open Miqaat from the TV Home screen. D-pad controls its menus; diagnostics shortcuts work only while the Miqaat Diagnostics screen is open.")
+                    Text("Open Miqaat from the TV Home screen. D-pad controls its menus; numeric shortcuts work only inside Miqaat Diagnostics.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
                         remoteButton("Test Athan 1", icon: "play.circle", key: "KEY_1")
@@ -86,7 +89,7 @@ struct RemoteView: View {
                 .padding(14)
                 .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
 
-                Text("The TV must be on and connected to the same local network. Approve the pairing request on the TV.")
+                Text("TV IP from your screenshot: 192.168.40.21. Use the same Wi-Fi and approve the first pairing request on the TV.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.bottom, 10)
